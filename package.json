@@ -1,0 +1,11 @@
+{
+    "name": "webidl",
+    "version": "1.0.0",
+    "description": "Generator for Quill packages from Web IDL files. ",
+    "main": "src/index.js",
+    "author": "schwalbe_t",
+    "license": "MIT",
+    "dependencies": {
+        "webidl2": "^24.4.1"
+    }
+}
