@@ -1,0 +1,10 @@
+{
+    "name": "webidl",
+    "authors": ["schwalbe_t"],
+    "description": "Automatically generated Quill bindings for external JS APIs",
+    "type": "library",
+    "backend": "js",
+    "dependencies": [
+        "https://github.com/quill-project/std-js"
+    ]
+}
