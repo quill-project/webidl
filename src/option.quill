@@ -1,0 +1,6 @@
+
+mod webidl
+
+pub fun make_some[T](value: T) -> Option[T] = Option::Some(value)
+
+pub fun make_none[T]() -> Option[T] = Option::None

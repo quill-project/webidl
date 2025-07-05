@@ -3,7 +3,101 @@ mod dom
 
 //TODO!
 
+pub struct EventInit(
+    bubbles: Option[Bool],
+    cancelable: Option[Bool],
+    composed: Option[Bool]
+)
+
+pub fun EventInit::default() -> mut EventInit
+    = EventInit(Option::Some(false), Option::Some(false), Option::Some(false))
+
+pub ext fun EventInit::from_js(value: Any) -> mut EventInit = "
+    const r = {};
+    r.bubbles = (#var(value).bubbles === null || #var(value).bubbles === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).bubbles));
+    r.cancelable = (#var(value).cancelable === null || #var(value).cancelable === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).cancelable));
+    r.composed = (#var(value).composed === null || #var(value).composed === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).composed));
+    return r;
+"
+
+pub ext fun EventInit::as_js(self: EventInit) -> Any = "
+    const r = {};
+    r.bubbles = (#fun(Option::is_some[Bool])(#var(self).bubbles)? #var(self).bubbles.value : null);
+    r.cancelable = (#fun(Option::is_some[Bool])(#var(self).cancelable)? #var(self).cancelable.value : null);
+    r.composed = (#fun(Option::is_some[Bool])(#var(self).composed)? #var(self).composed.value : null);
+    return r;
+"
+
 //TODO!
+
+//TODO!
+
+pub struct CustomEventInit(
+    detail: Option[Any]
+)
+
+pub fun CustomEventInit::default() -> mut CustomEventInit
+    = CustomEventInit(Any::from(Option::None))
+
+pub ext fun CustomEventInit::from_js(value: Any) -> mut CustomEventInit = "
+    const r = {};
+    r.detail = (#var(value).detail === null || #var(value).detail === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).detail));
+    return r;
+"
+
+pub ext fun CustomEventInit::as_js(self: CustomEventInit) -> Any = "
+    const r = {};
+    r.detail = (#fun(Option::is_some[Any])(#var(self).detail)? #var(self).detail.value : null);
+    return r;
+"
+
+//TODO!
+
+//TODO!
+
+pub struct EventListenerOptions(
+    capture: Option[Bool]
+)
+
+pub fun EventListenerOptions::default() -> mut EventListenerOptions
+    = EventListenerOptions(Option::Some(false))
+
+pub ext fun EventListenerOptions::from_js(value: Any) -> mut EventListenerOptions = "
+    const r = {};
+    r.capture = (#var(value).capture === null || #var(value).capture === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).capture));
+    return r;
+"
+
+pub ext fun EventListenerOptions::as_js(self: EventListenerOptions) -> Any = "
+    const r = {};
+    r.capture = (#fun(Option::is_some[Bool])(#var(self).capture)? #var(self).capture.value : null);
+    return r;
+"
+
+pub struct AddEventListenerOptions(
+    passive: Option[Bool],
+    once: Option[Bool],
+    signal: Option[AbortSignal]
+)
+
+pub fun AddEventListenerOptions::default(passive: Option[Bool], signal: Option[AbortSignal]) -> mut AddEventListenerOptions
+    = AddEventListenerOptions(passive, Option::Some(false), signal)
+
+pub ext fun AddEventListenerOptions::from_js(value: Any) -> mut AddEventListenerOptions = "
+    const r = {};
+    r.passive = (#var(value).passive === null || #var(value).passive === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).passive));
+    r.once = (#var(value).once === null || #var(value).once === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).once));
+    r.signal = (#var(value).signal === null || #var(value).signal === undefined? #fun(webidl::make_none[AbortSignal])() : #fun(webidl::make_some[AbortSignal])(#fun(AbortSignal::from_js)(#var(value).signal)));
+    return r;
+"
+
+pub ext fun AddEventListenerOptions::as_js(self: AddEventListenerOptions) -> Any = "
+    const r = {};
+    r.passive = (#fun(Option::is_some[Bool])(#var(self).passive)? #var(self).passive.value : null);
+    r.once = (#fun(Option::is_some[Bool])(#var(self).once)? #var(self).once.value : null);
+    r.signal = (#fun(Option::is_some[AbortSignal])(#var(self).signal)? #fun(AbortSignal::as_js)(#var(self).signal.value) : null);
+    return r;
+"
 
 //TODO!
 
@@ -45,31 +139,113 @@ mod dom
 
 //TODO!
 
-//TODO!
+pub struct MutationObserverInit(
+    child_list: Option[Bool],
+    attributes: Option[Bool],
+    character_data: Option[Bool],
+    subtree: Option[Bool],
+    attribute_old_value: Option[Bool],
+    character_data_old_value: Option[Bool],
+    attribute_filter: Option[Any]
+)
+
+pub fun MutationObserverInit::default(attributes: Option[Bool], character_data: Option[Bool], attribute_old_value: Option[Bool], character_data_old_value: Option[Bool], attribute_filter: Option[Any]) -> mut MutationObserverInit
+    = MutationObserverInit(Option::Some(false), attributes, character_data, Option::Some(false), attribute_old_value, character_data_old_value, attribute_filter)
+
+pub ext fun MutationObserverInit::from_js(value: Any) -> mut MutationObserverInit = "
+    const r = {};
+    r.child_list = (#var(value).childList === null || #var(value).childList === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).childList));
+    r.attributes = (#var(value).attributes === null || #var(value).attributes === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).attributes));
+    r.character_data = (#var(value).characterData === null || #var(value).characterData === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).characterData));
+    r.subtree = (#var(value).subtree === null || #var(value).subtree === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).subtree));
+    r.attribute_old_value = (#var(value).attributeOldValue === null || #var(value).attributeOldValue === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).attributeOldValue));
+    r.character_data_old_value = (#var(value).characterDataOldValue === null || #var(value).characterDataOldValue === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).characterDataOldValue));
+    r.attribute_filter = (#var(value).attributeFilter === null || #var(value).attributeFilter === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).attributeFilter));
+    return r;
+"
+
+pub ext fun MutationObserverInit::as_js(self: MutationObserverInit) -> Any = "
+    const r = {};
+    r.childList = (#fun(Option::is_some[Bool])(#var(self).child_list)? #var(self).child_list.value : null);
+    r.attributes = (#fun(Option::is_some[Bool])(#var(self).attributes)? #var(self).attributes.value : null);
+    r.characterData = (#fun(Option::is_some[Bool])(#var(self).character_data)? #var(self).character_data.value : null);
+    r.subtree = (#fun(Option::is_some[Bool])(#var(self).subtree)? #var(self).subtree.value : null);
+    r.attributeOldValue = (#fun(Option::is_some[Bool])(#var(self).attribute_old_value)? #var(self).attribute_old_value.value : null);
+    r.characterDataOldValue = (#fun(Option::is_some[Bool])(#var(self).character_data_old_value)? #var(self).character_data_old_value.value : null);
+    r.attributeFilter = (#fun(Option::is_some[Any])(#var(self).attribute_filter)? #var(self).attribute_filter.value : null);
+    return r;
+"
 
 //TODO!
 
 //TODO!
 
-//TODO!
+pub struct GetRootNodeOptions(
+    composed: Option[Bool]
+)
+
+pub fun GetRootNodeOptions::default() -> mut GetRootNodeOptions
+    = GetRootNodeOptions(Option::Some(false))
+
+pub ext fun GetRootNodeOptions::from_js(value: Any) -> mut GetRootNodeOptions = "
+    const r = {};
+    r.composed = (#var(value).composed === null || #var(value).composed === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).composed));
+    return r;
+"
+
+pub ext fun GetRootNodeOptions::as_js(self: GetRootNodeOptions) -> Any = "
+    const r = {};
+    r.composed = (#fun(Option::is_some[Bool])(#var(self).composed)? #var(self).composed.value : null);
+    return r;
+"
 
 //TODO!
 
 //TODO!
 
-//TODO!
+pub struct ElementCreationOptions(
+    custom_element_registry: Option[Any],
+    is: Option[String]
+)
 
-//TODO!
+pub fun ElementCreationOptions::default(custom_element_registry: Option[Any], is: Option[String]) -> mut ElementCreationOptions
+    = ElementCreationOptions(custom_element_registry, is)
 
-//TODO!
+pub ext fun ElementCreationOptions::from_js(value: Any) -> mut ElementCreationOptions = "
+    const r = {};
+    r.custom_element_registry = (#var(value).customElementRegistry === null || #var(value).customElementRegistry === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).customElementRegistry));
+    r.is = (#var(value).is === null || #var(value).is === undefined? #fun(webidl::make_none[String])() : #fun(webidl::make_some[String])(#var(value).is));
+    return r;
+"
 
-//TODO!
+pub ext fun ElementCreationOptions::as_js(self: ElementCreationOptions) -> Any = "
+    const r = {};
+    r.customElementRegistry = (#fun(Option::is_some[Any])(#var(self).custom_element_registry)? #var(self).custom_element_registry.value : null);
+    r.is = (#fun(Option::is_some[String])(#var(self).is)? #var(self).is.value : null);
+    return r;
+"
 
-//TODO!
+pub struct ImportNodeOptions(
+    custom_element_registry: Option[Any],
+    self_only: Option[Bool]
+)
 
-//TODO!
+pub fun ImportNodeOptions::default(custom_element_registry: Option[Any]) -> mut ImportNodeOptions
+    = ImportNodeOptions(custom_element_registry, Option::Some(false))
 
-//TODO!
+pub ext fun ImportNodeOptions::from_js(value: Any) -> mut ImportNodeOptions = "
+    const r = {};
+    r.custom_element_registry = (#var(value).customElementRegistry === null || #var(value).customElementRegistry === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).customElementRegistry));
+    r.self_only = (#var(value).selfOnly === null || #var(value).selfOnly === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).selfOnly));
+    return r;
+"
+
+pub ext fun ImportNodeOptions::as_js(self: ImportNodeOptions) -> Any = "
+    const r = {};
+    r.customElementRegistry = (#fun(Option::is_some[Any])(#var(self).custom_element_registry)? #var(self).custom_element_registry.value : null);
+    r.selfOnly = (#fun(Option::is_some[Bool])(#var(self).self_only)? #var(self).self_only.value : null);
+    return r;
+"
 
 //TODO!
 
@@ -87,7 +263,39 @@ pub val SlotAssignmentMode::Named: String = "named";
 
 //TODO!
 
-//TODO!
+pub struct ShadowRootInit(
+    mode: String,
+    delegates_focus: Option[Bool],
+    slot_assignment: Option[String],
+    clonable: Option[Bool],
+    serializable: Option[Bool],
+    custom_element_registry: Option[Any]
+)
+
+pub fun ShadowRootInit::default(mode: String) -> mut ShadowRootInit
+    = ShadowRootInit(mode, Option::Some(false), Option::Some("named"), Option::Some(false), Option::Some(false), Option::None)
+
+pub ext fun ShadowRootInit::from_js(value: Any) -> mut ShadowRootInit = "
+    const r = {};
+    r.mode = #var(value).mode;
+    r.delegates_focus = (#var(value).delegatesFocus === null || #var(value).delegatesFocus === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).delegatesFocus));
+    r.slot_assignment = (#var(value).slotAssignment === null || #var(value).slotAssignment === undefined? #fun(webidl::make_none[String])() : #fun(webidl::make_some[String])(#var(value).slotAssignment));
+    r.clonable = (#var(value).clonable === null || #var(value).clonable === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).clonable));
+    r.serializable = (#var(value).serializable === null || #var(value).serializable === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).serializable));
+    r.custom_element_registry = (#var(value).customElementRegistry === null || #var(value).customElementRegistry === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).customElementRegistry));
+    return r;
+"
+
+pub ext fun ShadowRootInit::as_js(self: ShadowRootInit) -> Any = "
+    const r = {};
+    r.mode = #var(self).mode;
+    r.delegatesFocus = (#fun(Option::is_some[Bool])(#var(self).delegates_focus)? #var(self).delegates_focus.value : null);
+    r.slotAssignment = (#fun(Option::is_some[String])(#var(self).slot_assignment)? #var(self).slot_assignment.value : null);
+    r.clonable = (#fun(Option::is_some[Bool])(#var(self).clonable)? #var(self).clonable.value : null);
+    r.serializable = (#fun(Option::is_some[Bool])(#var(self).serializable)? #var(self).serializable.value : null);
+    r.customElementRegistry = (#fun(Option::is_some[Any])(#var(self).custom_element_registry)? #var(self).custom_element_registry.value : null);
+    return r;
+"
 
 //TODO!
 
@@ -104,6 +312,34 @@ pub val SlotAssignmentMode::Named: String = "named";
 //TODO!
 
 //TODO!
+
+pub struct StaticRangeInit(
+    start_container: Node,
+    start_offset: Int,
+    end_container: Node,
+    end_offset: Int
+)
+
+pub fun StaticRangeInit::default(start_container: Node, start_offset: Int, end_container: Node, end_offset: Int) -> mut StaticRangeInit
+    = StaticRangeInit(start_container, start_offset, end_container, end_offset)
+
+pub ext fun StaticRangeInit::from_js(value: Any) -> mut StaticRangeInit = "
+    const r = {};
+    r.start_container = #fun(Node::from_js)(#var(value).startContainer);
+    r.start_offset = BigInt(#var(value).startOffset);
+    r.end_container = #fun(Node::from_js)(#var(value).endContainer);
+    r.end_offset = BigInt(#var(value).endOffset);
+    return r;
+"
+
+pub ext fun StaticRangeInit::as_js(self: StaticRangeInit) -> Any = "
+    const r = {};
+    r.startContainer = #fun(Node::as_js)(#var(self).start_container);
+    r.startOffset = Number(#var(self).start_offset);
+    r.endContainer = #fun(Node::as_js)(#var(self).end_container);
+    r.endOffset = Number(#var(self).end_offset);
+    return r;
+"
 
 //TODO!
 
