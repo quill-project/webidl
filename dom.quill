@@ -1,7 +1,10 @@
 
 mod dom
 
-//TODO!
+pub val Event::NONE: Int = 0
+pub val Event::CAPTURING_PHASE: Int = 1
+pub val Event::AT_TARGET: Int = 2
+pub val Event::BUBBLING_PHASE: Int = 3
 
 pub struct EventInit(
     bubbles: Option[Bool],
@@ -28,32 +31,46 @@ pub ext fun EventInit::as_js(self: EventInit) -> Any = "
     return r;
 "
 
-//TODO!
-
-//TODO!
+pub val CustomEvent::NONE: Int = 0
+pub val CustomEvent::CAPTURING_PHASE: Int = 1
+pub val CustomEvent::AT_TARGET: Int = 2
+pub val CustomEvent::BUBBLING_PHASE: Int = 3
 
 pub struct CustomEventInit(
-    detail: Option[Any]
+    detail: Option[Any],
+    bubbles: Option[Bool],
+    cancelable: Option[Bool],
+    composed: Option[Bool]
 )
 
 pub fun CustomEventInit::default() -> mut CustomEventInit
-    = CustomEventInit(Any::from(Option::None))
+    = CustomEventInit(Any::from(Option::None), Option::Some(false), Option::Some(false), Option::Some(false))
+
+pub ext fun CustomEventInit::as_event_init(self: CustomEventInit) -> EventInit = "return #var(self);"
+
+pub ext fun CustomEventInit::as_event_init_mut(self: mut CustomEventInit) -> mut EventInit = "return #var(self);"
+
+pub ext fun CustomEventInit::from_event_init_unchecked(base: EventInit) -> CustomEventInit = "return #var(self);"
+
+pub ext fun CustomEventInit::from_event_init_mut_unchecked(base: mut EventInit) -> mut CustomEventInit = "return #var(self);"
 
 pub ext fun CustomEventInit::from_js(value: Any) -> mut CustomEventInit = "
     const r = {};
     r.detail = (#var(value).detail === null || #var(value).detail === undefined? #fun(webidl::make_none[Any])() : #fun(webidl::make_some[Any])(#var(value).detail));
+    r.bubbles = (#var(value).bubbles === null || #var(value).bubbles === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).bubbles));
+    r.cancelable = (#var(value).cancelable === null || #var(value).cancelable === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).cancelable));
+    r.composed = (#var(value).composed === null || #var(value).composed === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).composed));
     return r;
 "
 
 pub ext fun CustomEventInit::as_js(self: CustomEventInit) -> Any = "
     const r = {};
     r.detail = (#fun(Option::is_some[Any])(#var(self).detail)? #var(self).detail.value : null);
+    r.bubbles = (#fun(Option::is_some[Bool])(#var(self).bubbles)? #var(self).bubbles.value : null);
+    r.cancelable = (#fun(Option::is_some[Bool])(#var(self).cancelable)? #var(self).cancelable.value : null);
+    r.composed = (#fun(Option::is_some[Bool])(#var(self).composed)? #var(self).composed.value : null);
     return r;
 "
-
-//TODO!
-
-//TODO!
 
 pub struct EventListenerOptions(
     capture: Option[Bool]
@@ -77,17 +94,27 @@ pub ext fun EventListenerOptions::as_js(self: EventListenerOptions) -> Any = "
 pub struct AddEventListenerOptions(
     passive: Option[Bool],
     once: Option[Bool],
-    signal: Option[AbortSignal]
+    signal: Option[mut AbortSignal],
+    capture: Option[Bool]
 )
 
-pub fun AddEventListenerOptions::default(passive: Option[Bool], signal: Option[AbortSignal]) -> mut AddEventListenerOptions
-    = AddEventListenerOptions(passive, Option::Some(false), signal)
+pub fun AddEventListenerOptions::default() -> mut AddEventListenerOptions
+    = AddEventListenerOptions(Option::None, Option::Some(false), Option::None, Option::Some(false))
+
+pub ext fun AddEventListenerOptions::as_event_listener_options(self: AddEventListenerOptions) -> EventListenerOptions = "return #var(self);"
+
+pub ext fun AddEventListenerOptions::as_event_listener_options_mut(self: mut AddEventListenerOptions) -> mut EventListenerOptions = "return #var(self);"
+
+pub ext fun AddEventListenerOptions::from_event_listener_options_unchecked(base: EventListenerOptions) -> AddEventListenerOptions = "return #var(self);"
+
+pub ext fun AddEventListenerOptions::from_event_listener_options_mut_unchecked(base: mut EventListenerOptions) -> mut AddEventListenerOptions = "return #var(self);"
 
 pub ext fun AddEventListenerOptions::from_js(value: Any) -> mut AddEventListenerOptions = "
     const r = {};
     r.passive = (#var(value).passive === null || #var(value).passive === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).passive));
     r.once = (#var(value).once === null || #var(value).once === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).once));
-    r.signal = (#var(value).signal === null || #var(value).signal === undefined? #fun(webidl::make_none[AbortSignal])() : #fun(webidl::make_some[AbortSignal])(#fun(AbortSignal::from_js)(#var(value).signal)));
+    r.signal = (#var(value).signal === null || #var(value).signal === undefined? #fun(webidl::make_none[mut AbortSignal])() : #fun(webidl::make_some[mut AbortSignal])(#fun(AbortSignal::from_js)(#var(value).signal)));
+    r.capture = (#var(value).capture === null || #var(value).capture === undefined? #fun(webidl::make_none[Bool])() : #fun(webidl::make_some[Bool])(#var(value).capture));
     return r;
 "
 
@@ -95,49 +122,10 @@ pub ext fun AddEventListenerOptions::as_js(self: AddEventListenerOptions) -> Any
     const r = {};
     r.passive = (#fun(Option::is_some[Bool])(#var(self).passive)? #var(self).passive.value : null);
     r.once = (#fun(Option::is_some[Bool])(#var(self).once)? #var(self).once.value : null);
-    r.signal = (#fun(Option::is_some[AbortSignal])(#var(self).signal)? #fun(AbortSignal::as_js)(#var(self).signal.value) : null);
+    r.signal = (#fun(Option::is_some[mut AbortSignal])(#var(self).signal)? #fun(AbortSignal::as_js)(#var(self).signal.value) : null);
+    r.capture = (#fun(Option::is_some[Bool])(#var(self).capture)? #var(self).capture.value : null);
     return r;
 "
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
 
 pub struct MutationObserverInit(
     child_list: Option[Bool],
@@ -149,8 +137,8 @@ pub struct MutationObserverInit(
     attribute_filter: Option[Any]
 )
 
-pub fun MutationObserverInit::default(attributes: Option[Bool], character_data: Option[Bool], attribute_old_value: Option[Bool], character_data_old_value: Option[Bool], attribute_filter: Option[Any]) -> mut MutationObserverInit
-    = MutationObserverInit(Option::Some(false), attributes, character_data, Option::Some(false), attribute_old_value, character_data_old_value, attribute_filter)
+pub fun MutationObserverInit::default() -> mut MutationObserverInit
+    = MutationObserverInit(Option::Some(false), Option::None, Option::None, Option::Some(false), Option::None, Option::None, Option::None)
 
 pub ext fun MutationObserverInit::from_js(value: Any) -> mut MutationObserverInit = "
     const r = {};
@@ -176,9 +164,24 @@ pub ext fun MutationObserverInit::as_js(self: MutationObserverInit) -> Any = "
     return r;
 "
 
-//TODO!
-
-//TODO!
+pub val Node::ELEMENT_NODE: Int = 1
+pub val Node::ATTRIBUTE_NODE: Int = 2
+pub val Node::TEXT_NODE: Int = 3
+pub val Node::CDATA_SECTION_NODE: Int = 4
+pub val Node::ENTITY_REFERENCE_NODE: Int = 5
+pub val Node::ENTITY_NODE: Int = 6
+pub val Node::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Node::COMMENT_NODE: Int = 8
+pub val Node::DOCUMENT_NODE: Int = 9
+pub val Node::DOCUMENT_TYPE_NODE: Int = 10
+pub val Node::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Node::NOTATION_NODE: Int = 12
+pub val Node::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Node::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Node::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Node::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Node::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
 pub struct GetRootNodeOptions(
     composed: Option[Bool]
@@ -199,17 +202,51 @@ pub ext fun GetRootNodeOptions::as_js(self: GetRootNodeOptions) -> Any = "
     return r;
 "
 
-//TODO!
+pub val Document::ELEMENT_NODE: Int = 1
+pub val Document::ATTRIBUTE_NODE: Int = 2
+pub val Document::TEXT_NODE: Int = 3
+pub val Document::CDATA_SECTION_NODE: Int = 4
+pub val Document::ENTITY_REFERENCE_NODE: Int = 5
+pub val Document::ENTITY_NODE: Int = 6
+pub val Document::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Document::COMMENT_NODE: Int = 8
+pub val Document::DOCUMENT_NODE: Int = 9
+pub val Document::DOCUMENT_TYPE_NODE: Int = 10
+pub val Document::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Document::NOTATION_NODE: Int = 12
+pub val Document::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Document::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Document::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Document::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Document::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Document::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val XMLDocument::ELEMENT_NODE: Int = 1
+pub val XMLDocument::ATTRIBUTE_NODE: Int = 2
+pub val XMLDocument::TEXT_NODE: Int = 3
+pub val XMLDocument::CDATA_SECTION_NODE: Int = 4
+pub val XMLDocument::ENTITY_REFERENCE_NODE: Int = 5
+pub val XMLDocument::ENTITY_NODE: Int = 6
+pub val XMLDocument::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val XMLDocument::COMMENT_NODE: Int = 8
+pub val XMLDocument::DOCUMENT_NODE: Int = 9
+pub val XMLDocument::DOCUMENT_TYPE_NODE: Int = 10
+pub val XMLDocument::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val XMLDocument::NOTATION_NODE: Int = 12
+pub val XMLDocument::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val XMLDocument::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val XMLDocument::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val XMLDocument::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val XMLDocument::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val XMLDocument::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
 pub struct ElementCreationOptions(
     custom_element_registry: Option[Any],
     is: Option[String]
 )
 
-pub fun ElementCreationOptions::default(custom_element_registry: Option[Any], is: Option[String]) -> mut ElementCreationOptions
-    = ElementCreationOptions(custom_element_registry, is)
+pub fun ElementCreationOptions::default() -> mut ElementCreationOptions
+    = ElementCreationOptions(Option::None, Option::None)
 
 pub ext fun ElementCreationOptions::from_js(value: Any) -> mut ElementCreationOptions = "
     const r = {};
@@ -230,8 +267,8 @@ pub struct ImportNodeOptions(
     self_only: Option[Bool]
 )
 
-pub fun ImportNodeOptions::default(custom_element_registry: Option[Any]) -> mut ImportNodeOptions
-    = ImportNodeOptions(custom_element_registry, Option::Some(false))
+pub fun ImportNodeOptions::default() -> mut ImportNodeOptions
+    = ImportNodeOptions(Option::None, Option::Some(false))
 
 pub ext fun ImportNodeOptions::from_js(value: Any) -> mut ImportNodeOptions = "
     const r = {};
@@ -247,13 +284,62 @@ pub ext fun ImportNodeOptions::as_js(self: ImportNodeOptions) -> Any = "
     return r;
 "
 
-//TODO!
+pub val DocumentType::ELEMENT_NODE: Int = 1
+pub val DocumentType::ATTRIBUTE_NODE: Int = 2
+pub val DocumentType::TEXT_NODE: Int = 3
+pub val DocumentType::CDATA_SECTION_NODE: Int = 4
+pub val DocumentType::ENTITY_REFERENCE_NODE: Int = 5
+pub val DocumentType::ENTITY_NODE: Int = 6
+pub val DocumentType::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val DocumentType::COMMENT_NODE: Int = 8
+pub val DocumentType::DOCUMENT_NODE: Int = 9
+pub val DocumentType::DOCUMENT_TYPE_NODE: Int = 10
+pub val DocumentType::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val DocumentType::NOTATION_NODE: Int = 12
+pub val DocumentType::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val DocumentType::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val DocumentType::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val DocumentType::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val DocumentType::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val DocumentType::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val DocumentFragment::ELEMENT_NODE: Int = 1
+pub val DocumentFragment::ATTRIBUTE_NODE: Int = 2
+pub val DocumentFragment::TEXT_NODE: Int = 3
+pub val DocumentFragment::CDATA_SECTION_NODE: Int = 4
+pub val DocumentFragment::ENTITY_REFERENCE_NODE: Int = 5
+pub val DocumentFragment::ENTITY_NODE: Int = 6
+pub val DocumentFragment::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val DocumentFragment::COMMENT_NODE: Int = 8
+pub val DocumentFragment::DOCUMENT_NODE: Int = 9
+pub val DocumentFragment::DOCUMENT_TYPE_NODE: Int = 10
+pub val DocumentFragment::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val DocumentFragment::NOTATION_NODE: Int = 12
+pub val DocumentFragment::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val DocumentFragment::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val DocumentFragment::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val DocumentFragment::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val DocumentFragment::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val DocumentFragment::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
-
-//TODO!
+pub val ShadowRoot::ELEMENT_NODE: Int = 1
+pub val ShadowRoot::ATTRIBUTE_NODE: Int = 2
+pub val ShadowRoot::TEXT_NODE: Int = 3
+pub val ShadowRoot::CDATA_SECTION_NODE: Int = 4
+pub val ShadowRoot::ENTITY_REFERENCE_NODE: Int = 5
+pub val ShadowRoot::ENTITY_NODE: Int = 6
+pub val ShadowRoot::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val ShadowRoot::COMMENT_NODE: Int = 8
+pub val ShadowRoot::DOCUMENT_NODE: Int = 9
+pub val ShadowRoot::DOCUMENT_TYPE_NODE: Int = 10
+pub val ShadowRoot::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val ShadowRoot::NOTATION_NODE: Int = 12
+pub val ShadowRoot::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val ShadowRoot::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val ShadowRoot::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val ShadowRoot::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val ShadowRoot::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val ShadowRoot::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
 pub val ShadowRootMode::Open: String = "open";
 pub val ShadowRootMode::Closed: String = "closed";
@@ -261,7 +347,24 @@ pub val ShadowRootMode::Closed: String = "closed";
 pub val SlotAssignmentMode::Manual: String = "manual";
 pub val SlotAssignmentMode::Named: String = "named";
 
-//TODO!
+pub val Element::ELEMENT_NODE: Int = 1
+pub val Element::ATTRIBUTE_NODE: Int = 2
+pub val Element::TEXT_NODE: Int = 3
+pub val Element::CDATA_SECTION_NODE: Int = 4
+pub val Element::ENTITY_REFERENCE_NODE: Int = 5
+pub val Element::ENTITY_NODE: Int = 6
+pub val Element::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Element::COMMENT_NODE: Int = 8
+pub val Element::DOCUMENT_NODE: Int = 9
+pub val Element::DOCUMENT_TYPE_NODE: Int = 10
+pub val Element::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Element::NOTATION_NODE: Int = 12
+pub val Element::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Element::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Element::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Element::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Element::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Element::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
 pub struct ShadowRootInit(
     mode: String,
@@ -297,30 +400,128 @@ pub ext fun ShadowRootInit::as_js(self: ShadowRootInit) -> Any = "
     return r;
 "
 
-//TODO!
+pub val Attr::ELEMENT_NODE: Int = 1
+pub val Attr::ATTRIBUTE_NODE: Int = 2
+pub val Attr::TEXT_NODE: Int = 3
+pub val Attr::CDATA_SECTION_NODE: Int = 4
+pub val Attr::ENTITY_REFERENCE_NODE: Int = 5
+pub val Attr::ENTITY_NODE: Int = 6
+pub val Attr::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Attr::COMMENT_NODE: Int = 8
+pub val Attr::DOCUMENT_NODE: Int = 9
+pub val Attr::DOCUMENT_TYPE_NODE: Int = 10
+pub val Attr::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Attr::NOTATION_NODE: Int = 12
+pub val Attr::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Attr::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Attr::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Attr::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Attr::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Attr::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val CharacterData::ELEMENT_NODE: Int = 1
+pub val CharacterData::ATTRIBUTE_NODE: Int = 2
+pub val CharacterData::TEXT_NODE: Int = 3
+pub val CharacterData::CDATA_SECTION_NODE: Int = 4
+pub val CharacterData::ENTITY_REFERENCE_NODE: Int = 5
+pub val CharacterData::ENTITY_NODE: Int = 6
+pub val CharacterData::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val CharacterData::COMMENT_NODE: Int = 8
+pub val CharacterData::DOCUMENT_NODE: Int = 9
+pub val CharacterData::DOCUMENT_TYPE_NODE: Int = 10
+pub val CharacterData::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val CharacterData::NOTATION_NODE: Int = 12
+pub val CharacterData::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val CharacterData::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val CharacterData::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val CharacterData::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val CharacterData::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val CharacterData::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val Text::ELEMENT_NODE: Int = 1
+pub val Text::ATTRIBUTE_NODE: Int = 2
+pub val Text::TEXT_NODE: Int = 3
+pub val Text::CDATA_SECTION_NODE: Int = 4
+pub val Text::ENTITY_REFERENCE_NODE: Int = 5
+pub val Text::ENTITY_NODE: Int = 6
+pub val Text::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Text::COMMENT_NODE: Int = 8
+pub val Text::DOCUMENT_NODE: Int = 9
+pub val Text::DOCUMENT_TYPE_NODE: Int = 10
+pub val Text::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Text::NOTATION_NODE: Int = 12
+pub val Text::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Text::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Text::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Text::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Text::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Text::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val CDATASection::ELEMENT_NODE: Int = 1
+pub val CDATASection::ATTRIBUTE_NODE: Int = 2
+pub val CDATASection::TEXT_NODE: Int = 3
+pub val CDATASection::CDATA_SECTION_NODE: Int = 4
+pub val CDATASection::ENTITY_REFERENCE_NODE: Int = 5
+pub val CDATASection::ENTITY_NODE: Int = 6
+pub val CDATASection::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val CDATASection::COMMENT_NODE: Int = 8
+pub val CDATASection::DOCUMENT_NODE: Int = 9
+pub val CDATASection::DOCUMENT_TYPE_NODE: Int = 10
+pub val CDATASection::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val CDATASection::NOTATION_NODE: Int = 12
+pub val CDATASection::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val CDATASection::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val CDATASection::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val CDATASection::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val CDATASection::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val CDATASection::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
+pub val ProcessingInstruction::ELEMENT_NODE: Int = 1
+pub val ProcessingInstruction::ATTRIBUTE_NODE: Int = 2
+pub val ProcessingInstruction::TEXT_NODE: Int = 3
+pub val ProcessingInstruction::CDATA_SECTION_NODE: Int = 4
+pub val ProcessingInstruction::ENTITY_REFERENCE_NODE: Int = 5
+pub val ProcessingInstruction::ENTITY_NODE: Int = 6
+pub val ProcessingInstruction::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val ProcessingInstruction::COMMENT_NODE: Int = 8
+pub val ProcessingInstruction::DOCUMENT_NODE: Int = 9
+pub val ProcessingInstruction::DOCUMENT_TYPE_NODE: Int = 10
+pub val ProcessingInstruction::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val ProcessingInstruction::NOTATION_NODE: Int = 12
+pub val ProcessingInstruction::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val ProcessingInstruction::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val ProcessingInstruction::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val ProcessingInstruction::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val ProcessingInstruction::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val ProcessingInstruction::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
-//TODO!
-
-//TODO!
-
-//TODO!
+pub val Comment::ELEMENT_NODE: Int = 1
+pub val Comment::ATTRIBUTE_NODE: Int = 2
+pub val Comment::TEXT_NODE: Int = 3
+pub val Comment::CDATA_SECTION_NODE: Int = 4
+pub val Comment::ENTITY_REFERENCE_NODE: Int = 5
+pub val Comment::ENTITY_NODE: Int = 6
+pub val Comment::PROCESSING_INSTRUCTION_NODE: Int = 7
+pub val Comment::COMMENT_NODE: Int = 8
+pub val Comment::DOCUMENT_NODE: Int = 9
+pub val Comment::DOCUMENT_TYPE_NODE: Int = 10
+pub val Comment::DOCUMENT_FRAGMENT_NODE: Int = 11
+pub val Comment::NOTATION_NODE: Int = 12
+pub val Comment::DOCUMENT_POSITION_DISCONNECTED: Int = 1
+pub val Comment::DOCUMENT_POSITION_PRECEDING: Int = 2
+pub val Comment::DOCUMENT_POSITION_FOLLOWING: Int = 4
+pub val Comment::DOCUMENT_POSITION_CONTAINS: Int = 8
+pub val Comment::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
+pub val Comment::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
 pub struct StaticRangeInit(
-    start_container: Node,
+    start_container: mut Node,
     start_offset: Int,
-    end_container: Node,
+    end_container: mut Node,
     end_offset: Int
 )
 
-pub fun StaticRangeInit::default(start_container: Node, start_offset: Int, end_container: Node, end_offset: Int) -> mut StaticRangeInit
+pub fun StaticRangeInit::default(start_container: mut Node, start_offset: Int, end_container: mut Node, end_offset: Int) -> mut StaticRangeInit
     = StaticRangeInit(start_container, start_offset, end_container, end_offset)
 
 pub ext fun StaticRangeInit::from_js(value: Any) -> mut StaticRangeInit = "
@@ -341,29 +542,36 @@ pub ext fun StaticRangeInit::as_js(self: StaticRangeInit) -> Any = "
     return r;
 "
 
-//TODO!
+pub val Range::START_TO_START: Int = 0
+pub val Range::START_TO_END: Int = 1
+pub val Range::END_TO_END: Int = 2
+pub val Range::END_TO_START: Int = 3
 
-//TODO!
+pub val NodeFilter::FILTER_ACCEPT: Int = 1
+pub val NodeFilter::FILTER_REJECT: Int = 2
+pub val NodeFilter::FILTER_SKIP: Int = 3
+pub val NodeFilter::SHOW_ALL: Int = 4294967295
+pub val NodeFilter::SHOW_ELEMENT: Int = 1
+pub val NodeFilter::SHOW_ATTRIBUTE: Int = 2
+pub val NodeFilter::SHOW_TEXT: Int = 4
+pub val NodeFilter::SHOW_CDATA_SECTION: Int = 8
+pub val NodeFilter::SHOW_ENTITY_REFERENCE: Int = 16
+pub val NodeFilter::SHOW_ENTITY: Int = 32
+pub val NodeFilter::SHOW_PROCESSING_INSTRUCTION: Int = 64
+pub val NodeFilter::SHOW_COMMENT: Int = 128
+pub val NodeFilter::SHOW_DOCUMENT: Int = 256
+pub val NodeFilter::SHOW_DOCUMENT_TYPE: Int = 512
+pub val NodeFilter::SHOW_DOCUMENT_FRAGMENT: Int = 1024
+pub val NodeFilter::SHOW_NOTATION: Int = 2048
 
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
-
-//TODO!
+pub val XPathResult::ANY_TYPE: Int = 0
+pub val XPathResult::NUMBER_TYPE: Int = 1
+pub val XPathResult::STRING_TYPE: Int = 2
+pub val XPathResult::BOOLEAN_TYPE: Int = 3
+pub val XPathResult::UNORDERED_NODE_ITERATOR_TYPE: Int = 4
+pub val XPathResult::ORDERED_NODE_ITERATOR_TYPE: Int = 5
+pub val XPathResult::UNORDERED_NODE_SNAPSHOT_TYPE: Int = 6
+pub val XPathResult::ORDERED_NODE_SNAPSHOT_TYPE: Int = 7
+pub val XPathResult::ANY_UNORDERED_NODE_TYPE: Int = 8
+pub val XPathResult::FIRST_ORDERED_NODE_TYPE: Int = 9
 

@@ -22,11 +22,12 @@ function main() {
     }
 }
 
-function camelToSnakeCase(name) {
+function toSnakeCase(name) {
     let r = "";
     for(const c of name) {
         if("A" <= c && c <= "Z") {
-            r += "_" + c.toLowerCase();
+            if(r.length > 0) { r += "_"; }
+            r += c.toLowerCase();
         } else {
             r += c;
         }
@@ -42,43 +43,81 @@ function generateModule(tree, module) {
     }
     let result = `\nmod ${module}\n\n`;
     for(const symbol of tree) {
-        result += generateSymbol(symbol, symbols);
+        result += generateSymbol(symbol, symbols, tree);
     }
     return result;
 }
 
-function generateSymbol(symbol, symbols) {
+function generateSymbol(symbol, symbols, tree) {
     switch(symbol.type) {
-        case "dictionary": return generateDictionary(symbol, symbols);
-        case "interface": return "//TODO!\n\n";
-        case "callback interface": return "//TODO!\n\n";
-        case "interface mixin": return ""; // Nothing to do, magic happens in 'includes'
-        case "includes": return "//TODO!\n\n";
-        case "callback": return "//TODO!\n\n";
+        case "dictionary": return generateDictionary(symbol, symbols, tree);
+        case "interface": return generateInterface(symbol, symbols, tree)
+            + generateInterfaceConstants(symbol, symbols, tree);
+        case "interface mixin": return ""; // Nothing to do, magic happens in 'interface'
+        case "includes": // Nothing to do, magic happens in 'interface'
+        case "callback": return ""; // nothing to do, magic happens in type ref generator function
+        case "callback interface": return generateInterfaceConstants(symbol, symbols, tree);
+        case "typedef": return ""; // nothing to do, magic happens in type ref generator function
         case "enum": return generateEnum(symbol, symbols);
     }
     console.error(`Definitions of type '${symbol.type}' are not implemented`);
     return `// TODO: Definitions of type '${symbol.type}'\n\n`;
 }
 
-function generateDictionary(symbol, symbols) {
-    let r = "";
-    if(symbol.inheritance !== null) {
-        // TODO!
-        console.error("inheritance for dictionaries is not implemented!");
+function collectSymbolMembers(symbol, symbols, tree) {
+    const collected = [];
+    let searched = symbol;
+    for(;;) {
+        collected.push(...searched.members);
+        if(!searched.inheritance) { break; }
+        searched = symbols[searched.inheritance];
+        if(searched === undefined) {
+            console.error(`Could not find dictionary '${searched.inheritance}'!`);
+            break;
+        }
     }
+    for(const def of tree) {
+        if(def.type !== "includes" || def.target !== symbol.name) { continue; }
+        collected.push(...symbols[def.includes].members);
+    }
+    return collected;
+}
+
+function generateInterface(symbol, symbols, tree) {
+    let r = "";
+    const members = collectSymbolMembers(symbol, symbols, tree);
+    for(const member of members) {
+        
+    }
+    return r;
+}
+
+function generateInterfaceConstants(symbol, symbols, tree) {
+    let r = "";
+    const members = collectSymbolMembers(symbol, symbols, tree);
+    for(const member of members) {
+        if(member.type !== "const") { continue; }
+        r += `pub val ${symbol.name}::${member.name}: ${generateTypeRef(member.idlType)} = ${generateValue(member.value, member.idlType)}\n`;
+    }
+    if(r.length > 0) { r += "\n"; }
+    return r;
+}
+
+function generateDictionary(symbol, symbols, tree) {
+    let r = "";
+    const fields = collectSymbolMembers(symbol, symbols, tree);
     const fieldTypeToQuill = field => {
         const t = generateTypeRef(field.idlType, symbols);
         if(field.required || field.idlType.nullable) { return t; }
         return `Option[${t}]`; 
     };
     const fieldNameToQuill = field => {
-        return camelToSnakeCase(field.name);
+        return toSnakeCase(field.name);
     };
     // declaration
     r += `pub struct ${symbol.name}(`;
     let hadField = false;
-    for(const field of symbol.members) {
+    for(const field of fields) {
         if(hadField) { r += `,`; }
         hadField = true;
         r += `\n    ${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`;
@@ -86,15 +125,20 @@ function generateDictionary(symbol, symbols) {
     r += `\n)\n\n`;
     // default values
     r += `pub fun ${symbol.name}::default(`;
-    r += symbol.members
-        .filter(field => field.default === null)
+    r += fields
+        .filter(field => field.default === null && field.required && !field.idlType.nullable)
         .map(field => `${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`)
         .join(", ");
     r += `) -> mut ${symbol.name}\n`;
     r += `    = ${symbol.name}(`;
-    r += symbol.members
+    r += fields
         .map(field => {
-            if(field.default === null) { return fieldNameToQuill(field); }
+            if(field.default === null) {
+                if(field.required && !field.idlType.nullable) {
+                    return fieldNameToQuill(field);
+                }
+                return "Option::None";
+            }
             const v = generateValue(field.default, field.idlType);
             if(field.required) { return v; }
             if(field.default.type === "null") { return v; }
@@ -102,10 +146,17 @@ function generateDictionary(symbol, symbols) {
         })
         .join(", ");
     r += `)\n\n`;
+    // inheritance
+    if(symbol.inheritance !== null) {
+        r += `pub ext fun ${symbol.name}::as_${toSnakeCase(symbol.inheritance)}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
+        r += `pub ext fun ${symbol.name}::as_${toSnakeCase(symbol.inheritance)}_mut(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
+        r += `pub ext fun ${symbol.name}::from_${toSnakeCase(symbol.inheritance)}_unchecked(base: ${symbol.inheritance}) -> ${symbol.name} = "return #var(self);"\n\n`;
+        r += `pub ext fun ${symbol.name}::from_${toSnakeCase(symbol.inheritance)}_mut_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(self);"\n\n`;
+    }
     // from JS
     r += `pub ext fun ${symbol.name}::from_js(value: Any) -> mut ${symbol.name} = "\n`;
     r += `    const r = {};\n`;
-    for(const field of symbol.members) {
+    for(const field of fields) {
         const n = fieldNameToQuill(field);
         const v = `#var(value).${field.name}`;
         const qv = field.required
@@ -118,7 +169,7 @@ function generateDictionary(symbol, symbols) {
     // as JS
     r += `pub ext fun ${symbol.name}::as_js(self: ${symbol.name}) -> Any = "\n`;
     r += `    const r = {};\n`;
-    for(const field of symbol.members) {
+    for(const field of fields) {
         const n = fieldNameToQuill(field);
         const v = `#var(self).${n}`;
         const jv = field.required
@@ -149,6 +200,10 @@ function generateValue(value, type) {
             case "string":
                 return `"${value.value}"`;
             case "number":
+                if(value.value.startsWith("0x")) {
+                    return parseInt(value.value.slice(2), 16).toString(10);
+                }
+                return value.value;
             case "boolean":
                 return value.value;
             case "null":
@@ -176,7 +231,7 @@ function generateValue(value, type) {
     return gen();
 }
 
-function generateTypeRefNamed(type, symbols) {
+function generateTypeRefNamed(type, symbols, mutable = true) {
     if(type.generic) {
         // type.idlType is an array!
         // TODO!
@@ -227,12 +282,33 @@ function generateTypeRefNamed(type, symbols) {
     if(symbol.type === "enum") {
         return "String";
     }
+    if(symbol.type === "typedef") {
+        return generateTypeRef(symbol.idlType, symbols, mutable);
+    }
+    if(symbol.type === "callback") {
+        const ret = generateTypeRef(symbol.idlType, symbols);
+        const args = symbol.arguments
+            .map(arg => generateTypeRef(arg.idlType, symbols))
+            .join(", ");
+        return `Fun(${args}) -> ${ret}`;
+    }
+    if(symbol.type === "callback interface") {
+        const method = symbol.members
+            .filter(member => member.type === "operation")
+            .at(0);
+        const ret = generateTypeRef(method.idlType, symbols);
+        const args = method.arguments
+            .map(arg => generateTypeRef(arg.idlType, symbols))
+            .join(", ");
+        return `Fun(${args}) -> ${ret}`;
+    }
+    if(mutable) { return `mut ${type.idlType}`; }
     return type.idlType;
 }
 
-function generateTypeRef(type, symbols) {
+function generateTypeRef(type, symbols, mutable = true) {
     if(type.nullable) {
-        return `Option[${generateTypeRefNamed(type, symbols)}]`;
+        return `Option[${generateTypeRefNamed(type, symbols, mutable)}]`;
     }
     if(type.union) {
         // type.idlType is an array!
@@ -240,7 +316,7 @@ function generateTypeRef(type, symbols) {
         console.error(`Unions are not yet implemented!`);
         return "Any";
     }
-    return generateTypeRefNamed(type, symbols);
+    return generateTypeRefNamed(type, symbols, mutable);
 }
 
 function rawToQuillValue(value, type, symbols) {
@@ -288,6 +364,18 @@ function rawToQuillValue(value, type, symbols) {
     }
     if(symbol.type === "enum") {
         return value;
+    }
+    if(symbol.type === "typedef") {
+        return valueToQuillValue(value, symbol.idlType, symbols);
+    }
+    if(symbol.type === "callback") {
+        return value;
+    }
+    if(symbol.type === "callback interface") {
+        const method = symbol.members
+            .filter(member => member.type === "operation")
+            .at(0);
+        return `(...a) => ${value}.${method.name}(...a)`;
     }
     return `#fun(${symbol.name}::from_js)(${value})`;
 }
@@ -355,6 +443,18 @@ function rawToJsValue(value, type, symbols) {
     }
     if(symbol.type === "enum") {
         return value;
+    }
+    if(symbol.type === "typedef") {
+        return valueToJsValue(value, symbol.idlType, symbols);
+    }
+    if(symbol.type === "callback") {
+        return value;
+    }
+    if(symbol.type === "callback interface") {
+        const method = symbol.members
+            .filter(member => member.type === "operation")
+            .at(0);
+        return `{ ${method.name}: ${value} }`;
     }
     return `#fun(${symbol.name}::as_js)(${value})`;
 }
