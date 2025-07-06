@@ -1,6 +1,8 @@
 
 mod dom
 
+struct Event()
+
 pub val Event::NONE: Int = 0
 pub val Event::CAPTURING_PHASE: Int = 1
 pub val Event::AT_TARGET: Int = 2
@@ -31,6 +33,34 @@ pub ext fun EventInit::as_js(self: EventInit) -> Any = "
     return r;
 "
 
+struct Window()
+
+struct CustomEvent()
+
+/// Converts a reference to 'CustomEvent' to a reference to 'Event'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEvent::as_event(self: CustomEvent) -> Event = "return #var(self);"
+
+/// Converts a mutable reference to 'CustomEvent' to a mutable reference to 'Event'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEvent::as_mut_event(self: mut CustomEvent) -> mut Event = "return #var(self);"
+
+/// Attempts to convert a reference to 'Event' to a reference to 'CustomEvent'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CustomEvent' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEvent::from_event(base: Event) -> CustomEvent = "
+    if(#var(base) instanceof CustomEvent) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Event' to 'CustomEvent'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Event' to a mutable reference to 'CustomEvent'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CustomEvent' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEvent::from_mut_event(base: mut Event) -> mut CustomEvent = "
+    if(#var(base) instanceof CustomEvent) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Event' to 'CustomEvent'!\");
+"
+
 pub val CustomEvent::NONE: Int = 0
 pub val CustomEvent::CAPTURING_PHASE: Int = 1
 pub val CustomEvent::AT_TARGET: Int = 2
@@ -46,13 +76,23 @@ pub struct CustomEventInit(
 pub fun CustomEventInit::default() -> mut CustomEventInit
     = CustomEventInit(Any::from(Option::None), Option::Some(false), Option::Some(false), Option::Some(false))
 
+/// Converts a reference to 'CustomEventInit' to a reference to 'EventInit'.
+/// This does not involve manipulating the object or reference.
 pub ext fun CustomEventInit::as_event_init(self: CustomEventInit) -> EventInit = "return #var(self);"
 
-pub ext fun CustomEventInit::as_event_init_mut(self: mut CustomEventInit) -> mut EventInit = "return #var(self);"
+/// Converts a mutable reference to 'CustomEventInit' to a mutable reference to 'EventInit'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEventInit::as_mut_event_init(self: mut CustomEventInit) -> mut EventInit = "return #var(self);"
 
-pub ext fun CustomEventInit::from_event_init_unchecked(base: EventInit) -> CustomEventInit = "return #var(self);"
+/// Attempts to convert a reference to 'EventInit' to a reference to 'CustomEventInit'.
+/// A 'base' that is not a reference to 'CustomEventInit' RESULTS IN UNDEFINED BEHAVIOR.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEventInit::from_event_init_unchecked(base: EventInit) -> CustomEventInit = "return #var(base);"
 
-pub ext fun CustomEventInit::from_event_init_mut_unchecked(base: mut EventInit) -> mut CustomEventInit = "return #var(self);"
+/// Attempts to convert a mutable reference to 'EventInit' to a mutable reference to 'CustomEventInit'.
+/// A 'base' that is not a reference to 'CustomEventInit' RESULTS IN UNDEFINED BEHAVIOR.
+/// This does not involve manipulating the object or reference.
+pub ext fun CustomEventInit::from_mut_event_init_unchecked(base: mut EventInit) -> mut CustomEventInit = "return #var(base);"
 
 pub ext fun CustomEventInit::from_js(value: Any) -> mut CustomEventInit = "
     const r = {};
@@ -71,6 +111,8 @@ pub ext fun CustomEventInit::as_js(self: CustomEventInit) -> Any = "
     r.composed = (#fun(Option::is_some[Bool])(#var(self).composed)? #var(self).composed.value : null);
     return r;
 "
+
+struct EventTarget()
 
 pub struct EventListenerOptions(
     capture: Option[Bool]
@@ -101,13 +143,23 @@ pub struct AddEventListenerOptions(
 pub fun AddEventListenerOptions::default() -> mut AddEventListenerOptions
     = AddEventListenerOptions(Option::None, Option::Some(false), Option::None, Option::Some(false))
 
+/// Converts a reference to 'AddEventListenerOptions' to a reference to 'EventListenerOptions'.
+/// This does not involve manipulating the object or reference.
 pub ext fun AddEventListenerOptions::as_event_listener_options(self: AddEventListenerOptions) -> EventListenerOptions = "return #var(self);"
 
-pub ext fun AddEventListenerOptions::as_event_listener_options_mut(self: mut AddEventListenerOptions) -> mut EventListenerOptions = "return #var(self);"
+/// Converts a mutable reference to 'AddEventListenerOptions' to a mutable reference to 'EventListenerOptions'.
+/// This does not involve manipulating the object or reference.
+pub ext fun AddEventListenerOptions::as_mut_event_listener_options(self: mut AddEventListenerOptions) -> mut EventListenerOptions = "return #var(self);"
 
-pub ext fun AddEventListenerOptions::from_event_listener_options_unchecked(base: EventListenerOptions) -> AddEventListenerOptions = "return #var(self);"
+/// Attempts to convert a reference to 'EventListenerOptions' to a reference to 'AddEventListenerOptions'.
+/// A 'base' that is not a reference to 'AddEventListenerOptions' RESULTS IN UNDEFINED BEHAVIOR.
+/// This does not involve manipulating the object or reference.
+pub ext fun AddEventListenerOptions::from_event_listener_options_unchecked(base: EventListenerOptions) -> AddEventListenerOptions = "return #var(base);"
 
-pub ext fun AddEventListenerOptions::from_event_listener_options_mut_unchecked(base: mut EventListenerOptions) -> mut AddEventListenerOptions = "return #var(self);"
+/// Attempts to convert a mutable reference to 'EventListenerOptions' to a mutable reference to 'AddEventListenerOptions'.
+/// A 'base' that is not a reference to 'AddEventListenerOptions' RESULTS IN UNDEFINED BEHAVIOR.
+/// This does not involve manipulating the object or reference.
+pub ext fun AddEventListenerOptions::from_mut_event_listener_options_unchecked(base: mut EventListenerOptions) -> mut AddEventListenerOptions = "return #var(base);"
 
 pub ext fun AddEventListenerOptions::from_js(value: Any) -> mut AddEventListenerOptions = "
     const r = {};
@@ -126,6 +178,40 @@ pub ext fun AddEventListenerOptions::as_js(self: AddEventListenerOptions) -> Any
     r.capture = (#fun(Option::is_some[Bool])(#var(self).capture)? #var(self).capture.value : null);
     return r;
 "
+
+struct AbortController()
+
+struct AbortSignal()
+
+/// Converts a reference to 'AbortSignal' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun AbortSignal::as_event_target(self: AbortSignal) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'AbortSignal' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun AbortSignal::as_mut_event_target(self: mut AbortSignal) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'AbortSignal'.
+/// The conversion may fail and panic if 'base' is not a reference to 'AbortSignal' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun AbortSignal::from_event_target(base: EventTarget) -> AbortSignal = "
+    if(#var(base) instanceof AbortSignal) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'AbortSignal'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'AbortSignal'.
+/// The conversion may fail and panic if 'base' is not a reference to 'AbortSignal' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun AbortSignal::from_mut_event_target(base: mut EventTarget) -> mut AbortSignal = "
+    if(#var(base) instanceof AbortSignal) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'AbortSignal'!\");
+"
+
+struct NodeList()
+
+struct HTMLCollection()
+
+struct MutationObserver()
 
 pub struct MutationObserverInit(
     child_list: Option[Bool],
@@ -162,6 +248,34 @@ pub ext fun MutationObserverInit::as_js(self: MutationObserverInit) -> Any = "
     r.characterDataOldValue = (#fun(Option::is_some[Bool])(#var(self).character_data_old_value)? #var(self).character_data_old_value.value : null);
     r.attributeFilter = (#fun(Option::is_some[Any])(#var(self).attribute_filter)? #var(self).attribute_filter.value : null);
     return r;
+"
+
+struct MutationRecord()
+
+struct Node()
+
+/// Converts a reference to 'Node' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Node::as_event_target(self: Node) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Node' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Node::as_mut_event_target(self: mut Node) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Node'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Node' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Node::from_event_target(base: EventTarget) -> Node = "
+    if(#var(base) instanceof Node) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Node'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Node'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Node' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Node::from_mut_event_target(base: mut EventTarget) -> mut Node = "
+    if(#var(base) instanceof Node) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Node'!\");
 "
 
 pub val Node::ELEMENT_NODE: Int = 1
@@ -202,6 +316,56 @@ pub ext fun GetRootNodeOptions::as_js(self: GetRootNodeOptions) -> Any = "
     return r;
 "
 
+struct Document()
+
+/// Converts a reference to 'Document' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::as_node(self: Document) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'Document' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::as_mut_node(self: mut Document) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'Document'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Document' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::from_node(base: Node) -> Document = "
+    if(#var(base) instanceof Document) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Document'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'Document'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Document' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::from_mut_node(base: mut Node) -> mut Document = "
+    if(#var(base) instanceof Document) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Document'!\");
+"
+
+/// Converts a reference to 'Document' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::as_event_target(self: Document) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Document' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::as_mut_event_target(self: mut Document) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Document'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Document' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::from_event_target(base: EventTarget) -> Document = "
+    if(#var(base) instanceof Document) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Document'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Document'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Document' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Document::from_mut_event_target(base: mut EventTarget) -> mut Document = "
+    if(#var(base) instanceof Document) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Document'!\");
+"
+
 pub val Document::ELEMENT_NODE: Int = 1
 pub val Document::ATTRIBUTE_NODE: Int = 2
 pub val Document::TEXT_NODE: Int = 3
@@ -220,6 +384,80 @@ pub val Document::DOCUMENT_POSITION_FOLLOWING: Int = 4
 pub val Document::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val Document::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val Document::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
+
+struct XMLDocument()
+
+/// Converts a reference to 'XMLDocument' to a reference to 'Document'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_document(self: XMLDocument) -> Document = "return #var(self);"
+
+/// Converts a mutable reference to 'XMLDocument' to a mutable reference to 'Document'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_mut_document(self: mut XMLDocument) -> mut Document = "return #var(self);"
+
+/// Attempts to convert a reference to 'Document' to a reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_document(base: Document) -> XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Document' to 'XMLDocument'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Document' to a mutable reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_mut_document(base: mut Document) -> mut XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Document' to 'XMLDocument'!\");
+"
+
+/// Converts a reference to 'XMLDocument' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_node(self: XMLDocument) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'XMLDocument' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_mut_node(self: mut XMLDocument) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_node(base: Node) -> XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'XMLDocument'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_mut_node(base: mut Node) -> mut XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'XMLDocument'!\");
+"
+
+/// Converts a reference to 'XMLDocument' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_event_target(self: XMLDocument) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'XMLDocument' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::as_mut_event_target(self: mut XMLDocument) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_event_target(base: EventTarget) -> XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'XMLDocument'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'XMLDocument'.
+/// The conversion may fail and panic if 'base' is not a reference to 'XMLDocument' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun XMLDocument::from_mut_event_target(base: mut EventTarget) -> mut XMLDocument = "
+    if(#var(base) instanceof XMLDocument) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'XMLDocument'!\");
+"
 
 pub val XMLDocument::ELEMENT_NODE: Int = 1
 pub val XMLDocument::ATTRIBUTE_NODE: Int = 2
@@ -284,6 +522,58 @@ pub ext fun ImportNodeOptions::as_js(self: ImportNodeOptions) -> Any = "
     return r;
 "
 
+struct DOMImplementation()
+
+struct DocumentType()
+
+/// Converts a reference to 'DocumentType' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::as_node(self: DocumentType) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'DocumentType' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::as_mut_node(self: mut DocumentType) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'DocumentType'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentType' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::from_node(base: Node) -> DocumentType = "
+    if(#var(base) instanceof DocumentType) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'DocumentType'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'DocumentType'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentType' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::from_mut_node(base: mut Node) -> mut DocumentType = "
+    if(#var(base) instanceof DocumentType) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'DocumentType'!\");
+"
+
+/// Converts a reference to 'DocumentType' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::as_event_target(self: DocumentType) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'DocumentType' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::as_mut_event_target(self: mut DocumentType) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'DocumentType'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentType' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::from_event_target(base: EventTarget) -> DocumentType = "
+    if(#var(base) instanceof DocumentType) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'DocumentType'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'DocumentType'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentType' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentType::from_mut_event_target(base: mut EventTarget) -> mut DocumentType = "
+    if(#var(base) instanceof DocumentType) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'DocumentType'!\");
+"
+
 pub val DocumentType::ELEMENT_NODE: Int = 1
 pub val DocumentType::ATTRIBUTE_NODE: Int = 2
 pub val DocumentType::TEXT_NODE: Int = 3
@@ -303,6 +593,56 @@ pub val DocumentType::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val DocumentType::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val DocumentType::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
+struct DocumentFragment()
+
+/// Converts a reference to 'DocumentFragment' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::as_node(self: DocumentFragment) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'DocumentFragment' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::as_mut_node(self: mut DocumentFragment) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'DocumentFragment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentFragment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::from_node(base: Node) -> DocumentFragment = "
+    if(#var(base) instanceof DocumentFragment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'DocumentFragment'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'DocumentFragment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentFragment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::from_mut_node(base: mut Node) -> mut DocumentFragment = "
+    if(#var(base) instanceof DocumentFragment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'DocumentFragment'!\");
+"
+
+/// Converts a reference to 'DocumentFragment' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::as_event_target(self: DocumentFragment) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'DocumentFragment' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::as_mut_event_target(self: mut DocumentFragment) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'DocumentFragment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentFragment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::from_event_target(base: EventTarget) -> DocumentFragment = "
+    if(#var(base) instanceof DocumentFragment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'DocumentFragment'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'DocumentFragment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'DocumentFragment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun DocumentFragment::from_mut_event_target(base: mut EventTarget) -> mut DocumentFragment = "
+    if(#var(base) instanceof DocumentFragment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'DocumentFragment'!\");
+"
+
 pub val DocumentFragment::ELEMENT_NODE: Int = 1
 pub val DocumentFragment::ATTRIBUTE_NODE: Int = 2
 pub val DocumentFragment::TEXT_NODE: Int = 3
@@ -321,6 +661,80 @@ pub val DocumentFragment::DOCUMENT_POSITION_FOLLOWING: Int = 4
 pub val DocumentFragment::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val DocumentFragment::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val DocumentFragment::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
+
+struct ShadowRoot()
+
+/// Converts a reference to 'ShadowRoot' to a reference to 'DocumentFragment'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_document_fragment(self: ShadowRoot) -> DocumentFragment = "return #var(self);"
+
+/// Converts a mutable reference to 'ShadowRoot' to a mutable reference to 'DocumentFragment'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_mut_document_fragment(self: mut ShadowRoot) -> mut DocumentFragment = "return #var(self);"
+
+/// Attempts to convert a reference to 'DocumentFragment' to a reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_document_fragment(base: DocumentFragment) -> ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'DocumentFragment' to 'ShadowRoot'!\");
+"
+
+/// Attempts to convert a mutable reference to 'DocumentFragment' to a mutable reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_mut_document_fragment(base: mut DocumentFragment) -> mut ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'DocumentFragment' to 'ShadowRoot'!\");
+"
+
+/// Converts a reference to 'ShadowRoot' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_node(self: ShadowRoot) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'ShadowRoot' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_mut_node(self: mut ShadowRoot) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_node(base: Node) -> ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'ShadowRoot'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_mut_node(base: mut Node) -> mut ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'ShadowRoot'!\");
+"
+
+/// Converts a reference to 'ShadowRoot' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_event_target(self: ShadowRoot) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'ShadowRoot' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::as_mut_event_target(self: mut ShadowRoot) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_event_target(base: EventTarget) -> ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'ShadowRoot'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'ShadowRoot'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ShadowRoot' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ShadowRoot::from_mut_event_target(base: mut EventTarget) -> mut ShadowRoot = "
+    if(#var(base) instanceof ShadowRoot) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'ShadowRoot'!\");
+"
 
 pub val ShadowRoot::ELEMENT_NODE: Int = 1
 pub val ShadowRoot::ATTRIBUTE_NODE: Int = 2
@@ -346,6 +760,56 @@ pub val ShadowRootMode::Closed: String = "closed";
 
 pub val SlotAssignmentMode::Manual: String = "manual";
 pub val SlotAssignmentMode::Named: String = "named";
+
+struct Element()
+
+/// Converts a reference to 'Element' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::as_node(self: Element) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'Element' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::as_mut_node(self: mut Element) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'Element'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Element' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::from_node(base: Node) -> Element = "
+    if(#var(base) instanceof Element) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Element'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'Element'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Element' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::from_mut_node(base: mut Node) -> mut Element = "
+    if(#var(base) instanceof Element) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Element'!\");
+"
+
+/// Converts a reference to 'Element' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::as_event_target(self: Element) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Element' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::as_mut_event_target(self: mut Element) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Element'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Element' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::from_event_target(base: EventTarget) -> Element = "
+    if(#var(base) instanceof Element) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Element'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Element'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Element' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Element::from_mut_event_target(base: mut EventTarget) -> mut Element = "
+    if(#var(base) instanceof Element) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Element'!\");
+"
 
 pub val Element::ELEMENT_NODE: Int = 1
 pub val Element::ATTRIBUTE_NODE: Int = 2
@@ -400,6 +864,58 @@ pub ext fun ShadowRootInit::as_js(self: ShadowRootInit) -> Any = "
     return r;
 "
 
+struct NamedNodeMap()
+
+struct Attr()
+
+/// Converts a reference to 'Attr' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::as_node(self: Attr) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'Attr' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::as_mut_node(self: mut Attr) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'Attr'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Attr' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::from_node(base: Node) -> Attr = "
+    if(#var(base) instanceof Attr) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Attr'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'Attr'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Attr' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::from_mut_node(base: mut Node) -> mut Attr = "
+    if(#var(base) instanceof Attr) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Attr'!\");
+"
+
+/// Converts a reference to 'Attr' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::as_event_target(self: Attr) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Attr' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::as_mut_event_target(self: mut Attr) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Attr'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Attr' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::from_event_target(base: EventTarget) -> Attr = "
+    if(#var(base) instanceof Attr) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Attr'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Attr'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Attr' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Attr::from_mut_event_target(base: mut EventTarget) -> mut Attr = "
+    if(#var(base) instanceof Attr) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Attr'!\");
+"
+
 pub val Attr::ELEMENT_NODE: Int = 1
 pub val Attr::ATTRIBUTE_NODE: Int = 2
 pub val Attr::TEXT_NODE: Int = 3
@@ -418,6 +934,56 @@ pub val Attr::DOCUMENT_POSITION_FOLLOWING: Int = 4
 pub val Attr::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val Attr::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val Attr::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
+
+struct CharacterData()
+
+/// Converts a reference to 'CharacterData' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::as_node(self: CharacterData) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'CharacterData' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::as_mut_node(self: mut CharacterData) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'CharacterData'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CharacterData' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::from_node(base: Node) -> CharacterData = "
+    if(#var(base) instanceof CharacterData) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'CharacterData'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'CharacterData'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CharacterData' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::from_mut_node(base: mut Node) -> mut CharacterData = "
+    if(#var(base) instanceof CharacterData) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'CharacterData'!\");
+"
+
+/// Converts a reference to 'CharacterData' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::as_event_target(self: CharacterData) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'CharacterData' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::as_mut_event_target(self: mut CharacterData) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'CharacterData'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CharacterData' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::from_event_target(base: EventTarget) -> CharacterData = "
+    if(#var(base) instanceof CharacterData) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'CharacterData'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'CharacterData'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CharacterData' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CharacterData::from_mut_event_target(base: mut EventTarget) -> mut CharacterData = "
+    if(#var(base) instanceof CharacterData) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'CharacterData'!\");
+"
 
 pub val CharacterData::ELEMENT_NODE: Int = 1
 pub val CharacterData::ATTRIBUTE_NODE: Int = 2
@@ -438,6 +1004,80 @@ pub val CharacterData::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val CharacterData::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val CharacterData::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
+struct Text()
+
+/// Converts a reference to 'Text' to a reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_character_data(self: Text) -> CharacterData = "return #var(self);"
+
+/// Converts a mutable reference to 'Text' to a mutable reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_mut_character_data(self: mut Text) -> mut CharacterData = "return #var(self);"
+
+/// Attempts to convert a reference to 'CharacterData' to a reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_character_data(base: CharacterData) -> Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'Text'!\");
+"
+
+/// Attempts to convert a mutable reference to 'CharacterData' to a mutable reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_mut_character_data(base: mut CharacterData) -> mut Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'Text'!\");
+"
+
+/// Converts a reference to 'Text' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_node(self: Text) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'Text' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_mut_node(self: mut Text) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_node(base: Node) -> Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Text'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_mut_node(base: mut Node) -> mut Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Text'!\");
+"
+
+/// Converts a reference to 'Text' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_event_target(self: Text) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Text' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::as_mut_event_target(self: mut Text) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_event_target(base: EventTarget) -> Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Text'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Text'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Text' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Text::from_mut_event_target(base: mut EventTarget) -> mut Text = "
+    if(#var(base) instanceof Text) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Text'!\");
+"
+
 pub val Text::ELEMENT_NODE: Int = 1
 pub val Text::ATTRIBUTE_NODE: Int = 2
 pub val Text::TEXT_NODE: Int = 3
@@ -456,6 +1096,104 @@ pub val Text::DOCUMENT_POSITION_FOLLOWING: Int = 4
 pub val Text::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val Text::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val Text::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
+
+struct CDATASection()
+
+/// Converts a reference to 'CDATASection' to a reference to 'Text'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_text(self: CDATASection) -> Text = "return #var(self);"
+
+/// Converts a mutable reference to 'CDATASection' to a mutable reference to 'Text'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_mut_text(self: mut CDATASection) -> mut Text = "return #var(self);"
+
+/// Attempts to convert a reference to 'Text' to a reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_text(base: Text) -> CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Text' to 'CDATASection'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Text' to a mutable reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_mut_text(base: mut Text) -> mut CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Text' to 'CDATASection'!\");
+"
+
+/// Converts a reference to 'CDATASection' to a reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_character_data(self: CDATASection) -> CharacterData = "return #var(self);"
+
+/// Converts a mutable reference to 'CDATASection' to a mutable reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_mut_character_data(self: mut CDATASection) -> mut CharacterData = "return #var(self);"
+
+/// Attempts to convert a reference to 'CharacterData' to a reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_character_data(base: CharacterData) -> CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'CDATASection'!\");
+"
+
+/// Attempts to convert a mutable reference to 'CharacterData' to a mutable reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_mut_character_data(base: mut CharacterData) -> mut CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'CDATASection'!\");
+"
+
+/// Converts a reference to 'CDATASection' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_node(self: CDATASection) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'CDATASection' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_mut_node(self: mut CDATASection) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_node(base: Node) -> CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'CDATASection'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_mut_node(base: mut Node) -> mut CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'CDATASection'!\");
+"
+
+/// Converts a reference to 'CDATASection' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_event_target(self: CDATASection) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'CDATASection' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::as_mut_event_target(self: mut CDATASection) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_event_target(base: EventTarget) -> CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'CDATASection'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'CDATASection'.
+/// The conversion may fail and panic if 'base' is not a reference to 'CDATASection' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun CDATASection::from_mut_event_target(base: mut EventTarget) -> mut CDATASection = "
+    if(#var(base) instanceof CDATASection) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'CDATASection'!\");
+"
 
 pub val CDATASection::ELEMENT_NODE: Int = 1
 pub val CDATASection::ATTRIBUTE_NODE: Int = 2
@@ -476,6 +1214,80 @@ pub val CDATASection::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val CDATASection::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val CDATASection::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
+struct ProcessingInstruction()
+
+/// Converts a reference to 'ProcessingInstruction' to a reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_character_data(self: ProcessingInstruction) -> CharacterData = "return #var(self);"
+
+/// Converts a mutable reference to 'ProcessingInstruction' to a mutable reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_mut_character_data(self: mut ProcessingInstruction) -> mut CharacterData = "return #var(self);"
+
+/// Attempts to convert a reference to 'CharacterData' to a reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_character_data(base: CharacterData) -> ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'ProcessingInstruction'!\");
+"
+
+/// Attempts to convert a mutable reference to 'CharacterData' to a mutable reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_mut_character_data(base: mut CharacterData) -> mut ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'ProcessingInstruction'!\");
+"
+
+/// Converts a reference to 'ProcessingInstruction' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_node(self: ProcessingInstruction) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'ProcessingInstruction' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_mut_node(self: mut ProcessingInstruction) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_node(base: Node) -> ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'ProcessingInstruction'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_mut_node(base: mut Node) -> mut ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'ProcessingInstruction'!\");
+"
+
+/// Converts a reference to 'ProcessingInstruction' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_event_target(self: ProcessingInstruction) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'ProcessingInstruction' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::as_mut_event_target(self: mut ProcessingInstruction) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_event_target(base: EventTarget) -> ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'ProcessingInstruction'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'ProcessingInstruction'.
+/// The conversion may fail and panic if 'base' is not a reference to 'ProcessingInstruction' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun ProcessingInstruction::from_mut_event_target(base: mut EventTarget) -> mut ProcessingInstruction = "
+    if(#var(base) instanceof ProcessingInstruction) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'ProcessingInstruction'!\");
+"
+
 pub val ProcessingInstruction::ELEMENT_NODE: Int = 1
 pub val ProcessingInstruction::ATTRIBUTE_NODE: Int = 2
 pub val ProcessingInstruction::TEXT_NODE: Int = 3
@@ -495,6 +1307,80 @@ pub val ProcessingInstruction::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val ProcessingInstruction::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val ProcessingInstruction::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
 
+struct Comment()
+
+/// Converts a reference to 'Comment' to a reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_character_data(self: Comment) -> CharacterData = "return #var(self);"
+
+/// Converts a mutable reference to 'Comment' to a mutable reference to 'CharacterData'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_mut_character_data(self: mut Comment) -> mut CharacterData = "return #var(self);"
+
+/// Attempts to convert a reference to 'CharacterData' to a reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_character_data(base: CharacterData) -> Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'Comment'!\");
+"
+
+/// Attempts to convert a mutable reference to 'CharacterData' to a mutable reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_mut_character_data(base: mut CharacterData) -> mut Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'CharacterData' to 'Comment'!\");
+"
+
+/// Converts a reference to 'Comment' to a reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_node(self: Comment) -> Node = "return #var(self);"
+
+/// Converts a mutable reference to 'Comment' to a mutable reference to 'Node'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_mut_node(self: mut Comment) -> mut Node = "return #var(self);"
+
+/// Attempts to convert a reference to 'Node' to a reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_node(base: Node) -> Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Comment'!\");
+"
+
+/// Attempts to convert a mutable reference to 'Node' to a mutable reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_mut_node(base: mut Node) -> mut Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'Node' to 'Comment'!\");
+"
+
+/// Converts a reference to 'Comment' to a reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_event_target(self: Comment) -> EventTarget = "return #var(self);"
+
+/// Converts a mutable reference to 'Comment' to a mutable reference to 'EventTarget'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::as_mut_event_target(self: mut Comment) -> mut EventTarget = "return #var(self);"
+
+/// Attempts to convert a reference to 'EventTarget' to a reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_event_target(base: EventTarget) -> Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Comment'!\");
+"
+
+/// Attempts to convert a mutable reference to 'EventTarget' to a mutable reference to 'Comment'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Comment' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Comment::from_mut_event_target(base: mut EventTarget) -> mut Comment = "
+    if(#var(base) instanceof Comment) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'EventTarget' to 'Comment'!\");
+"
+
 pub val Comment::ELEMENT_NODE: Int = 1
 pub val Comment::ATTRIBUTE_NODE: Int = 2
 pub val Comment::TEXT_NODE: Int = 3
@@ -513,6 +1399,8 @@ pub val Comment::DOCUMENT_POSITION_FOLLOWING: Int = 4
 pub val Comment::DOCUMENT_POSITION_CONTAINS: Int = 8
 pub val Comment::DOCUMENT_POSITION_CONTAINED_BY: Int = 16
 pub val Comment::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: Int = 32
+
+struct AbstractRange()
 
 pub struct StaticRangeInit(
     start_container: mut Node,
@@ -542,10 +1430,66 @@ pub ext fun StaticRangeInit::as_js(self: StaticRangeInit) -> Any = "
     return r;
 "
 
+struct StaticRange()
+
+/// Converts a reference to 'StaticRange' to a reference to 'AbstractRange'.
+/// This does not involve manipulating the object or reference.
+pub ext fun StaticRange::as_abstract_range(self: StaticRange) -> AbstractRange = "return #var(self);"
+
+/// Converts a mutable reference to 'StaticRange' to a mutable reference to 'AbstractRange'.
+/// This does not involve manipulating the object or reference.
+pub ext fun StaticRange::as_mut_abstract_range(self: mut StaticRange) -> mut AbstractRange = "return #var(self);"
+
+/// Attempts to convert a reference to 'AbstractRange' to a reference to 'StaticRange'.
+/// The conversion may fail and panic if 'base' is not a reference to 'StaticRange' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun StaticRange::from_abstract_range(base: AbstractRange) -> StaticRange = "
+    if(#var(base) instanceof StaticRange) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'AbstractRange' to 'StaticRange'!\");
+"
+
+/// Attempts to convert a mutable reference to 'AbstractRange' to a mutable reference to 'StaticRange'.
+/// The conversion may fail and panic if 'base' is not a reference to 'StaticRange' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun StaticRange::from_mut_abstract_range(base: mut AbstractRange) -> mut StaticRange = "
+    if(#var(base) instanceof StaticRange) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'AbstractRange' to 'StaticRange'!\");
+"
+
+struct Range()
+
+/// Converts a reference to 'Range' to a reference to 'AbstractRange'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Range::as_abstract_range(self: Range) -> AbstractRange = "return #var(self);"
+
+/// Converts a mutable reference to 'Range' to a mutable reference to 'AbstractRange'.
+/// This does not involve manipulating the object or reference.
+pub ext fun Range::as_mut_abstract_range(self: mut Range) -> mut AbstractRange = "return #var(self);"
+
+/// Attempts to convert a reference to 'AbstractRange' to a reference to 'Range'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Range' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Range::from_abstract_range(base: AbstractRange) -> Range = "
+    if(#var(base) instanceof Range) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'AbstractRange' to 'Range'!\");
+"
+
+/// Attempts to convert a mutable reference to 'AbstractRange' to a mutable reference to 'Range'.
+/// The conversion may fail and panic if 'base' is not a reference to 'Range' or if the given instance is user-implemented.
+/// This does not involve manipulating the object or reference.
+pub ext fun Range::from_mut_abstract_range(base: mut AbstractRange) -> mut Range = "
+    if(#var(base) instanceof Range) { return #var(base); }
+    #fun(panic[Unit])(\"Failed to downcast 'AbstractRange' to 'Range'!\");
+"
+
 pub val Range::START_TO_START: Int = 0
 pub val Range::START_TO_END: Int = 1
 pub val Range::END_TO_END: Int = 2
 pub val Range::END_TO_START: Int = 3
+
+struct NodeIterator()
+
+struct TreeWalker()
 
 pub val NodeFilter::FILTER_ACCEPT: Int = 1
 pub val NodeFilter::FILTER_REJECT: Int = 2
@@ -564,6 +1508,10 @@ pub val NodeFilter::SHOW_DOCUMENT_TYPE: Int = 512
 pub val NodeFilter::SHOW_DOCUMENT_FRAGMENT: Int = 1024
 pub val NodeFilter::SHOW_NOTATION: Int = 2048
 
+struct DOMTokenList()
+
+struct XPathResult()
+
 pub val XPathResult::ANY_TYPE: Int = 0
 pub val XPathResult::NUMBER_TYPE: Int = 1
 pub val XPathResult::STRING_TYPE: Int = 2
@@ -574,4 +1522,10 @@ pub val XPathResult::UNORDERED_NODE_SNAPSHOT_TYPE: Int = 6
 pub val XPathResult::ORDERED_NODE_SNAPSHOT_TYPE: Int = 7
 pub val XPathResult::ANY_UNORDERED_NODE_TYPE: Int = 8
 pub val XPathResult::FIRST_ORDERED_NODE_TYPE: Int = 9
+
+struct XPathExpression()
+
+struct XPathEvaluator()
+
+struct XSLTProcessor()
 

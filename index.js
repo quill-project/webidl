@@ -65,9 +65,12 @@ function generateSymbol(symbol, symbols, tree) {
 }
 
 function collectSymbolMembers(symbol, symbols, tree) {
+    const seen = new Set();
     const collected = [];
     let searched = symbol;
     for(;;) {
+        if(seen.has(searched.name)) { break; }
+        seen.add(searched.name);
         collected.push(...searched.members);
         if(!searched.inheritance) { break; }
         searched = symbols[searched.inheritance];
@@ -78,7 +81,10 @@ function collectSymbolMembers(symbol, symbols, tree) {
     }
     for(const def of tree) {
         if(def.type !== "includes" || def.target !== symbol.name) { continue; }
-        collected.push(...symbols[def.includes].members);
+        const included = symbols[def.includes];
+        if(seen.has(included.name)) { continue; }
+        seen.add(included.name);
+        collected.push(...included.members);
     }
     return collected;
 }
@@ -86,9 +92,39 @@ function collectSymbolMembers(symbol, symbols, tree) {
 function generateInterface(symbol, symbols, tree) {
     let r = "";
     const members = collectSymbolMembers(symbol, symbols, tree);
-    for(const member of members) {
-        
+    r += `struct ${symbol.name}()\n\n`;
+    if(symbol.inheritance !== null) {
+        let base = symbol.inheritance;
+        while(base !== null) {
+            const baseSC = toSnakeCase(base);
+            r += `/// Converts a reference to '${symbol.name}' to a reference to '${base}'.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${base} = "return #var(self);"\n\n`;
+            r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${base}'.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::as_mut_${baseSC}(self: mut ${symbol.name}) -> mut ${base} = "return #var(self);"\n\n`;
+            r += `/// Attempts to convert a reference to '${base}' to a reference to '${symbol.name}'.\n`;
+            r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::from_${baseSC}(base: ${base}) -> ${symbol.name} = "\n`;
+            r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
+            r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
+            r += `"\n\n`
+            r += `/// Attempts to convert a mutable reference to '${base}' to a mutable reference to '${symbol.name}'.\n`;
+            r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::from_mut_${baseSC}(base: mut ${base}) -> mut ${symbol.name} = "\n`;
+            r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
+            r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
+            r += `"\n\n`;
+            base = symbols[base].inheritance;
+        }
     }
+    // TODO! method for implementing, returns mut ref (duck typing :/)
+    // TODO! method for constructor
+    // TODO! method acessing properties, does not receive mutable reference!
+    // TODO! method for writing to properties (if not readonly), needs mut ref
+    // TODO! method for operations
     return r;
 }
 
@@ -148,10 +184,21 @@ function generateDictionary(symbol, symbols, tree) {
     r += `)\n\n`;
     // inheritance
     if(symbol.inheritance !== null) {
-        r += `pub ext fun ${symbol.name}::as_${toSnakeCase(symbol.inheritance)}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
-        r += `pub ext fun ${symbol.name}::as_${toSnakeCase(symbol.inheritance)}_mut(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
-        r += `pub ext fun ${symbol.name}::from_${toSnakeCase(symbol.inheritance)}_unchecked(base: ${symbol.inheritance}) -> ${symbol.name} = "return #var(self);"\n\n`;
-        r += `pub ext fun ${symbol.name}::from_${toSnakeCase(symbol.inheritance)}_mut_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(self);"\n\n`;
+        const baseSC = toSnakeCase(symbol.inheritance);
+        r += `/// Converts a reference to '${symbol.name}' to a reference to '${symbol.inheritance}'.\n`;
+        r += `/// This does not involve manipulating the object or reference.\n`;
+        r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
+        r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${symbol.inheritance}'.\n`;
+        r += `/// This does not involve manipulating the object or reference.\n`;
+        r += `pub ext fun ${symbol.name}::as_mut_${baseSC}(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
+        r += `/// Attempts to convert a reference to '${symbol.inheritance}' to a reference to '${symbol.name}'.\n`;
+        r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
+        r += `/// This does not involve manipulating the object or reference.\n`;
+        r += `pub ext fun ${symbol.name}::from_${baseSC}_unchecked(base: ${symbol.inheritance}) -> ${symbol.name} = "return #var(base);"\n\n`;
+        r += `/// Attempts to convert a mutable reference to '${symbol.inheritance}' to a mutable reference to '${symbol.name}'.\n`;
+        r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
+        r += `/// This does not involve manipulating the object or reference.\n`;
+        r += `pub ext fun ${symbol.name}::from_mut_${baseSC}_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(base);"\n\n`;
     }
     // from JS
     r += `pub ext fun ${symbol.name}::from_js(value: Any) -> mut ${symbol.name} = "\n`;
