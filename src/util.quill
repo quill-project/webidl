@@ -1,5 +1,5 @@
 
-mod webidl
+mod js::util
 
 pub fun make_some[T](value: T) -> Option[T] = Option::Some(value)
 

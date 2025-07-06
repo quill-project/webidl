@@ -1,0 +1,197 @@
+
+mod js
+
+/// Represents a Javascript value.
+/// The value is any value in a format that Javascript expects.
+struct JsValue()
+
+pub fun JsValue::as_js(self: JsValue) -> JsValue = self
+
+pub fun JsValue::from_js(v: JsValue) -> JsValue = v
+
+pub ext fun JsValue::unsafe_from[T](value: T) -> JsValue = "return #var(value);"
+
+pub ext fun JsValue::unsafe_as[T](value: JsValue) -> T = "return #var(value);"
+
+
+
+// Below are conversion functions for built-in and standard library types
+// from and to Javscript values.
+
+mod std
+
+use js::JsValue
+
+/// Converts a boolean to a Javascript value.
+pub ext fun Bool::as_js(self: Bool) -> JsValue = "return #var(self);"
+/// Attempts to convert a Javascript value to a boolean.
+/// This may fail and cause a panic if the provided value is not a boolean.
+pub ext fun Bool::from_js(v: JsValue) -> Bool = "
+    if(typeof #var(v) === \"boolean\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to boolean\");
+"
+
+/// Converts an integer to a Javascript value.
+/// This will convert the value to a Javascript "number", which is the default
+/// representation for integers in Javascript.
+/// Use 'as_js_bigint' to get a BigInt instead.
+pub ext fun Int::as_js(self: Int) -> JsValue = "return Number(#var(self));"
+/// Converts an integer to a Javascript value.
+/// This will convert the value to a Javascript BigInt.
+/// Use 'as_js' to get a "number" instead.
+pub ext fun Int::as_js_bigint(self: Int) -> JsValue = "return #var(self);"
+/// Converts a Javascript value to a boolean.
+/// This will convert both Javascript "number"s and BigInts.
+/// This may fail and cause a panic if the provided value is not convertible.
+pub ext fun Int::from_js(v: JsValue) -> Int = "
+    if(typeof #var(v) === \"number\") { return BigInt(Math.trunc(#var(v))); }
+    if(typeof #var(v) === \"bigint\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to integer\");
+"
+
+/// Converts a float to a Javascript value.
+pub ext fun Float::as_js(self: Float) -> JsValue = "return #var(self);"
+/// Attempts to convert a Javascript value to a float.
+/// This may fail and cause a panic if the provided value is not a float.
+pub ext fun Float::from_js(v: JsValue) -> Float = "
+    if(typeof #var(v) === \"number\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to number\");
+"
+
+/// Converts a string to a Javascript value.
+pub ext fun String::as_js(self: String) -> JsValue = "return #var(self);"
+/// Attempts to convert a Javascript value to a string.
+/// This may fail and cause a panic if the provided value is not a string.
+pub ext fun String::from_js(v: JsValue) -> String = "
+    if(typeof #var(v) === \"string\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to string\");
+"
+
+/// Converts the unit value to a Javascript value.
+pub ext fun Unit::as_js(self: Unit) -> JsValue = "return #var(self);"
+/// Attempts to convert a Javascript value to the unit value.
+/// This may fail and cause a panic if the provided value is not the unit value.
+pub ext fun Unit::from_js(v: JsValue) -> Unit = "
+    if(typeof #var(v) === \"undefined\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to unit\");
+"
+
+/// Converts a function to a Javascript value.
+pub fun Fun0::as_js[R](self: Fun() -> R) -> JsValue 
+    = (|| R::as_js(self()))
+    |> JsValue::unsafe_from[Fun() -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun0::from_js[R](v: JsValue) -> Fun() -> R 
+    = || JsValue::unsafe_as[Fun() -> JsValue](v)
+    ()
+    |> R::from_js()
+
+/// Converts a function to a Javascript value.=
+pub fun Fun1::as_js[A, R](self: Fun(A) -> R) -> JsValue 
+    = (|a| R::as_js(self(A::from_js(a))))
+    |> JsValue::unsafe_from[Fun(JsValue) -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun1::from_js[A, R](v: JsValue) -> Fun(A) -> R 
+    = |a| JsValue::unsafe_as[Fun(JsValue) -> JsValue](v)
+    (A::as_js(a))
+    |> R::from_js()
+
+/// Converts a function to a Javascript value.
+pub fun Fun2::as_js[A, B, R](self: Fun(A, B) -> R) -> JsValue 
+    = (|a, b| R::as_js(self(A::from_js(a), B::from_js(b))))
+    |> JsValue::unsafe_from[Fun(JsValue, JsValue) -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun2::from_js[A, B, R](v: JsValue) -> Fun(A, B) -> R 
+    = |a, b| JsValue::unsafe_as[Fun(JsValue, JsValue) -> JsValue](v)
+    (A::as_js(a), B::as_js(b))
+    |> R::from_js()
+
+/// Converts a function to a Javascript value.
+pub fun Fun3::as_js[A, B, C, R](self: Fun(A, B, C) -> R) -> JsValue 
+    = (|a, b, c| R::as_js(self(A::from_js(a), B::from_js(b), C::from_js(c))))
+    |> JsValue::unsafe_from[Fun(JsValue, JsValue, JsValue) -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun3::from_js[A, B, C, R](v: JsValue) -> Fun(A, B, C) -> R 
+    = |a, b, c| JsValue::unsafe_as[Fun(JsValue, JsValue, JsValue) -> JsValue](v)
+    (A::as_js(a), B::as_js(b), C::as_js(c))
+    |> R::from_js()
+
+/// Converts a function to a Javascript value.
+pub fun Fun4::as_js[A, B, C, D, R](self: Fun(A, B, C, D) -> R) -> JsValue 
+    = (|a, b, c, d| R::as_js(self(A::from_js(a), B::from_js(b), C::from_js(c), D::from_js(d))))
+    |> JsValue::unsafe_from[Fun(JsValue, JsValue, JsValue, JsValue) -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun4::from_js[A, B, C, D, R](v: JsValue) -> Fun(A, B, C, D) -> R 
+    = |a, b, c, d| JsValue::unsafe_as[Fun(JsValue, JsValue, JsValue, JsValue) -> JsValue](v)
+    (A::as_js(a), B::as_js(b), C::as_js(c), D::as_js(d))
+    |> R::from_js()
+
+/// Converts a function to a Javascript value.
+pub fun Fun5::as_js[A, B, C, D, E, R](self: Fun(A, B, C, D, E) -> R) -> JsValue 
+    = (|a, b, c, d, e| R::as_js(self(A::from_js(a), B::from_js(b), C::from_js(c), D::from_js(d), E::from_js(e))))
+    |> JsValue::unsafe_from[Fun(JsValue, JsValue, JsValue, JsValue, JsValue) -> JsValue]()
+/// Attempts to convert a Javascript value to a function.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a function.
+pub fun Fun5::from_js[A, B, C, D, E, R](v: JsValue) -> Fun(A, B, C, D, E) -> R 
+    = |a, b, c, d, e| JsValue::unsafe_as[Fun(JsValue, JsValue, JsValue, JsValue, JsValue) -> JsValue](v)
+    (A::as_js(a), B::as_js(b), C::as_js(c), D::as_js(d), E::as_js(e))
+    |> R::from_js()
+
+/// Converts a list to a Javascript value.
+pub fun List::as_js[T](self: List[T]) -> JsValue
+    = self |> values() |> map[T, JsValue](T::as_js) |> List::collect[JsValue]() 
+    |> JsValue::unsafe_from[List[JsValue]]()
+/// Attempts to convert a Javascript value to a list.
+/// This may result in UNDEFINED BEHAVIOR if the provided value is not a list.
+pub fun List::from_js[T](v: JsValue) -> List[T]
+    = JsValue::unsafe_as[List[JsValue]](v)
+    |> values() |> map[JsValue, T](T::from_js) |> List::collect[T]()
+
+ext fun Option::of_jsval_as_js(self: Option[JsValue]) -> JsValue = "
+    if(#fun(Option::is_some[JsValue])(#var(self))) { return #var(self).value; }
+    return null;
+"
+ext fun Option::of_jsval_as_js_undef(self: Option[JsValue]) -> JsValue = "
+    if(#fun(Option::is_some[JsValue])(#var(self))) { return #var(self).value; }
+    return undefined;
+"
+ext fun Option::of_jsval_from_js(v: JsValue) -> Option[JsValue] = "
+    if(#var(v) === null) { return #fun(js::util::make_none[JsValue])(); }
+    return #fun(js::util::make_some[JsValue])(#var(v));
+"
+ext fun Option::of_jsval_from_js_undef(v: JsValue) -> Option[JsValue] = "
+    if(#var(v) === null) { return #fun(js::util::make_none[JsValue])(); }
+    if(#var(v) === undefined) { return #fun(js::util::make_none[JsValue])(); }
+    return #fun(js::util::make_some[JsValue])(#var(v));
+"
+/// Converts an optional value to a Javascript value.
+/// This will translate to 'null' if there is no value, and otherwise the value.
+/// Use 'as_js_undef' to use 'undefined' for a missing value instead.
+pub fun Option::as_js[T](self: Option[T]) -> JsValue
+    = self |> map[T, JsValue](T::as_js) |> Option::of_jsval_as_js()
+/// Converts an optional value to a Javascript value.
+/// This will translate to 'undefined' if there is no value, 
+/// and otherwise the value.
+/// Use 'as_js' to use 'null' for a missing value instead.
+pub fun Option::as_js_undef[T](self: Option[T]) -> JsValue
+    = self |> map[T, JsValue](T::as_js) |> Option::of_jsval_as_js_undef()
+/// Converts a Javascript value to an optional.
+/// If the given value is 'null', it will be converted to no value.
+/// In any other case it will be converted to an optional containing the given
+/// value, including if the value is 'undefined'.
+/// Use 'from_js_undef' to convert both 'undefined' and 'null' to no value
+/// instead.
+pub fun Option::from_js[T](v: JsValue) -> Option[T]
+    = v |> Option::of_jsval_from_js() |> map[JsValue, T](T::from_js)
+/// Converts a Javascript value to an optional.
+/// If the given value is 'null' or 'undefined', it will be converted 
+/// to no value. In any other case it will be converted to an optional
+/// containing the given value.
+/// Use 'from_js' to consider only 'null' to indicate the absence of a value.
+pub fun Option::from_js_undef[T](v: JsValue) -> Option[T]
+    = v |> Option::of_jsval_from_js_undef() |> map[JsValue, T](T::from_js)

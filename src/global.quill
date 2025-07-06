@@ -1,0 +1,7 @@
+
+mod js
+
+pub ext fun global(name: String) -> Option[JsValue] = "
+    if(!Object.hasOwn(globalThis, #var(name))) { return #fun(js::util::make_none[JsValue])(); }
+    return #fun(js::util::make_some[JsValue])(globalThis[#var(name)]);
+"

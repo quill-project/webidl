@@ -22,18 +22,17 @@ function main() {
     }
 }
 
-function toSnakeCase(name) {
-    let r = "";
-    for(const c of name) {
-        if("A" <= c && c <= "Z") {
-            if(r.length > 0) { r += "_"; }
-            r += c.toLowerCase();
-        } else {
-            r += c;
-        }
-    }
-    return r;
-}
+const toSnakeCase = name => [...name]
+    .map((c, i) => {
+        const isUpper = t => t === t.toUpperCase();
+        if(!isUpper(c)) { return c; }
+        const isFirstUpper = i > 0 && !isUpper(name[i - 1]);
+        const isInAcronym = i > 0 && isUpper(name[i - 1]);
+        const endOfAcronym = i + 1 < name.length && !isUpper(name[i + 1]);
+        const insertU = isFirstUpper || (isInAcronym && endOfAcronym);
+        return (insertU? "_" : "") + c.toLowerCase();
+    })
+    .join("");
 
 function generateModule(tree, module) {
     const symbols = {};
@@ -41,7 +40,7 @@ function generateModule(tree, module) {
         if(!symbol.name) { continue; }
         symbols[symbol.name] = symbol;
     }
-    let result = `\nmod ${module}\n\n`;
+    let result = `\nmod ${module}\n\nuse js::*\n\n`;
     for(const symbol of tree) {
         result += generateSymbol(symbol, symbols, tree);
     }
@@ -60,7 +59,7 @@ function generateSymbol(symbol, symbols, tree) {
         case "typedef": return ""; // nothing to do, magic happens in type ref generator function
         case "enum": return generateEnum(symbol, symbols);
     }
-    console.error(`Definitions of type '${symbol.type}' are not implemented`);
+    console.warn(`Definitions of type '${symbol.type}' are not implemented`);
     return `// TODO: Definitions of type '${symbol.type}'\n\n`;
 }
 
@@ -71,11 +70,16 @@ function collectSymbolMembers(symbol, symbols, tree) {
     for(;;) {
         if(seen.has(searched.name)) { break; }
         seen.add(searched.name);
-        collected.push(...searched.members);
+        for(const member of searched.members) {
+            if(member.type === "constructor" && searched !== symbol) {
+                continue;
+            }
+            collected.push(member);
+        }
         if(!searched.inheritance) { break; }
         searched = symbols[searched.inheritance];
         if(searched === undefined) {
-            console.error(`Could not find dictionary '${searched.inheritance}'!`);
+            console.warn(`Could not find dictionary '${searched.inheritance}'!`);
             break;
         }
     }
@@ -93,6 +97,7 @@ function generateInterface(symbol, symbols, tree) {
     let r = "";
     const members = collectSymbolMembers(symbol, symbols, tree);
     r += `struct ${symbol.name}()\n\n`;
+    // generation of inheritance casts
     if(symbol.inheritance !== null) {
         let base = symbol.inheritance;
         while(base !== null) {
@@ -102,7 +107,7 @@ function generateInterface(symbol, symbols, tree) {
             r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${base} = "return #var(self);"\n\n`;
             r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${base}'.\n`;
             r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::as_mut_${baseSC}(self: mut ${symbol.name}) -> mut ${base} = "return #var(self);"\n\n`;
+            r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${base} = "return #var(self);"\n\n`;
             r += `/// Attempts to convert a reference to '${base}' to a reference to '${symbol.name}'.\n`;
             r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
             r += `/// This does not involve manipulating the object or reference.\n`;
@@ -113,18 +118,195 @@ function generateInterface(symbol, symbols, tree) {
             r += `/// Attempts to convert a mutable reference to '${base}' to a mutable reference to '${symbol.name}'.\n`;
             r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
             r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::from_mut_${baseSC}(base: mut ${base}) -> mut ${symbol.name} = "\n`;
+            r += `pub ext fun ${symbol.name}::from_m${baseSC}(base: mut ${base}) -> mut ${symbol.name} = "\n`;
             r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
             r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
             r += `"\n\n`;
             base = symbols[base].inheritance;
         }
     }
+    const generateArgumentDecl = arg => {
+        const name = toSnakeCase(arg.name);
+        const type = generateTypeRef(arg.idlType, symbols, true);
+        if(!arg.variadic) { return `${name}: ${type}`; }
+        return `...${name}: List[${type}]`;
+    };
+    const generateArgumentToJs = arg => {
+        const qv = `#var(${toSnakeCase(arg.name)})`;
+        if(!arg.variadic) { return valueToJsValue(qv, arg.idlType, symbols); }
+        return `(${qv}).map(v => ${valueToJsValue("v", arg.idlType, symbols)})`;
+    };
     // TODO! method for implementing, returns mut ref (duck typing :/)
-    // TODO! method for constructor
-    // TODO! method acessing properties, does not receive mutable reference!
-    // TODO! method for writing to properties (if not readonly), needs mut ref
-    // TODO! method for operations
+    // generation of constructors
+    const constructors = members
+        .filter(member => member.type === "constructor");
+    for(const constructor of constructors) {
+        const name = constructor.arguments.length === 0? "new"
+            : `from_` + constructor.arguments
+                .map(arg => generateOverloadTypeRef(arg.idlType, symbols, true))
+                .join("_");
+        r += `pub ext fun ${symbol.name}::${name}(`;
+        r += constructor.arguments.map(generateArgumentDecl).join(", ");
+        r += `) -> mut ${symbol.name}\n`;
+        r += `    = "new ${symbol.name}(`;
+        r += constructor.arguments.map(generateArgumentToJs).join(", ");
+        r += `);"\n\n`;
+    }
+    // generation of attributes
+    const attributes = members
+        .filter(member => member.type === "attribute");
+    for(const attribute of attributes) {
+        let selfArgRead = `self: ${symbol.name}`;
+        let selfArgWrite = `self: mut ${symbol.name}, `;
+        let jsAccessed = `#var(self)`;
+        if(attribute.special === "static") {
+            selfArgRead = "";
+            selfArgWrite = "";
+            jsAccessed = symbol.name;
+        }
+        if(!["", "static", "stringifier"].includes(attribute.special)) {
+            // TODO!
+            console.warn(`Unhandled special attribute type '${attribute.special}'!`);
+        }
+        const nameSC = toSnakeCase(attribute.name);
+        const valueT = generateTypeRef(attribute.idlType, symbols, true);
+        const value = `${jsAccessed}.${attribute.name}`;
+        r += `pub ext fun ${symbol.name}::${nameSC}(${selfArgRead}) -> ${valueT}\n`;
+        r += `    = "return ${valueToQuillValue(value, attribute.idlType, symbols)};"\n\n`;
+        if(!attribute.readonly) {
+            r += `pub ext fun ${symbol.name}::set_${nameSC}(${selfArgWrite}value: ${valueT})\n`;
+            r += `    = "${value} = ${valueToJsValue(`#var(value)`, attribute.idlType, symbols)};"\n\n`;
+        }
+    }
+    // generation of operations
+    const operations = members
+        .filter(member => member.type === "operation")
+    for(const operation of operations) {
+        const getMangledName = quillName => {
+            const overloads = operations.filter(
+                o => o.name === operation.name 
+                    && o.special === operation.special
+            );
+            if(overloads.length === 1) { return quillName; }
+            if(operation.arguments.length === 0) { return quillName; }
+            return quillName + "_" + operation.arguments
+                .map(arg => generateOverloadTypeRef(arg.idlType, symbols, true))
+                .join("_");
+        };
+        const generateAsMethod = (quillName, jsName, retT, retV) => {
+            r += `pub ext fun ${symbol.name}::${quillName}(__self: mut ${symbol.name}`;
+            r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
+            r += `) -> ${retT} = "\n`;
+            r += `    const r = #var(__self).${jsName}(`;
+            r += operation.arguments.map(generateArgumentToJs).join(", ");
+            r += `);\n`;
+            r += `    return ${retV};\n`
+            r += `"\n\n`;
+        };
+        const generateAsStatic = (quillName, jsName, retT, retV) => {
+            r += `pub ext fun ${symbol.name}::${quillName}(`;
+            r += operation.arguments.map(generateArgumentDecl).join(", ");
+            r += `) -> ${retT} = "\n`;
+            r += `    const r = ${symbol.name}.${jsName}(`;
+            r += operation.arguments.map(generateArgumentToJs).join(", ");
+            r += `);\n`;
+            r += `    return ${retV};\n`
+            r += `"\n\n`;
+        };
+        const generateAsGetter = (retT, retV) => {
+            r += `pub ext fun ${symbol.name}::${getMangledName("get")}(__self: ${symbol.name}`;
+            r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
+            r += `) -> ${retT} = "\n`;
+            r += `    const r = ${symbol.name}[${generateArgumentToJs(operation.arguments[0])}];\n`;
+            r += `    return ${retV};\n`
+            r += `"\n\n`;
+        };
+        const generateAsSetter = () => {
+            const key = generateArgumentToJs(operation.arguments[0]);
+            const value = generateArgumentToJs(operation.arguments[1]);
+            r += `pub ext fun ${symbol.name}::${getMangledName("set")}(__self: mut ${symbol.name}`;
+            r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
+            r += `) = "\n`;
+            r += `    ${symbol.name}[${key}] = ${value};\n`;
+            r += `"\n\n`;
+        };
+        const generateAsDeleter = () => {
+            r += `pub ext fun ${symbol.name}::${getMangledName("remove")}(__self: mut ${symbol.name}`;
+            r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
+            r += `) = "\n`;
+            r += `    delete ${symbol.name}[${generateArgumentToJs(operation.arguments[0])}];\n`;
+            r += `"\n\n`;
+        };
+        switch(operation.special) {
+            case "": {
+                const quillName = getMangledName(toSnakeCase(operation.name));
+                const retT = operation.idlType === undefined? "Unit"
+                    : generateTypeRef(operation.idlType, symbols, true);
+                const retV = operation.idlType === undefined? "undefined"
+                    : valueToQuillValue("r", operation.idlType, symbols);
+                generateAsMethod(quillName, operation.name, retT, retV);
+            } break;
+            case "stringifier": {
+                const jsName = operation.name.length === 0? "toString"
+                    : operation.name;
+                const quillName = operation.name.length === 0? "as_string"
+                    : getMangledName(toSnakeCase(operation.name));
+                const retT = operation.idlType === undefined? "String"
+                    : generateTypeRef(operation.idlType, symbols, true);
+                const retV = operation.idlType === undefined? "r"
+                    : valueToQuillValue("r", operation.idlType, symbols);
+                generateAsMethod(quillName, jsName, retT, retV);
+            } break;
+            case "static": {
+                const quillName = getMangledName(toSnakeCase(operation.name));
+                const retT = operation.idlType === undefined? "Unit"
+                    : generateTypeRef(operation.idlType, symbols, true);
+                const retV = operation.idlType === undefined? "undefined"
+                    : valueToQuillValue("r", operation.idlType, symbols);
+                generateAsStatic(quillName, operation.name, retT, retV);
+            } break;
+            case "getter": {
+                const retT = generateTypeRef(operation.idlType, symbols, true);
+                const retV = valueToQuillValue("r", operation.idlType, symbols);
+                if(operation.name.length > 0) {
+                    const quillName = getMangledName(toSnakeCase(operation.name));
+                    generateAsMethod(quillName, operation.name, retT, retV);
+                } else {
+                    generateAsGetter(retT, retV);
+                }
+            } break;
+            case "setter": {
+                const retT = operation.idlType === undefined? "Unit"
+                    : generateTypeRef(operation.idlType, symbols, true);
+                const retV = operation.idlType === undefined? "undefined"
+                    : valueToQuillValue("r", operation.idlType, symbols);
+                if(operation.name.length > 0) {
+                    const quillName = getMangledName(toSnakeCase(operation.name));
+                    generateAsMethod(quillName, operation.name, retT, retV);
+                } else {
+                    generateAsSetter();
+                }
+            } break;
+            case "deleter": {
+                const retT = operation.idlType === undefined? "Unit"
+                    : generateTypeRef(operation.idlType, symbols, true);
+                const retV = operation.idlType === undefined? "undefined"
+                    : valueToQuillValue("r", operation.idlType, symbols);
+                if(operation.name.length > 0) {
+                    const quillName = getMangledName(toSnakeCase(operation.name));
+                    generateAsMethod(quillName, operation.name, retT, retV);
+                } else {
+                    generateAsDeleter();
+                }
+            } break;
+            default: {
+                console.warn(`Unhandled special operation type '${operation.special}'!`);
+            }
+        }       
+    }
+    // generation of JS conversions
+    r += `pub fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = JsValue::unsafe_from[${symbol.name}](self)\n\n`
+    r += `pub fun ${symbol.name}::from_js(v: JsValue) -> mut ${symbol.name} = JsValue::unsafe_as[mut ${symbol.name}](v)\n\n`
     return r;
 }
 
@@ -190,7 +372,7 @@ function generateDictionary(symbol, symbols, tree) {
         r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
         r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${symbol.inheritance}'.\n`;
         r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::as_mut_${baseSC}(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
+        r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
         r += `/// Attempts to convert a reference to '${symbol.inheritance}' to a reference to '${symbol.name}'.\n`;
         r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
         r += `/// This does not involve manipulating the object or reference.\n`;
@@ -198,10 +380,10 @@ function generateDictionary(symbol, symbols, tree) {
         r += `/// Attempts to convert a mutable reference to '${symbol.inheritance}' to a mutable reference to '${symbol.name}'.\n`;
         r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
         r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::from_mut_${baseSC}_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(base);"\n\n`;
+        r += `pub ext fun ${symbol.name}::from_m${baseSC}_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(base);"\n\n`;
     }
     // from JS
-    r += `pub ext fun ${symbol.name}::from_js(value: Any) -> mut ${symbol.name} = "\n`;
+    r += `pub ext fun ${symbol.name}::from_js(value: JsValue) -> mut ${symbol.name} = "\n`;
     r += `    const r = {};\n`;
     for(const field of fields) {
         const n = fieldNameToQuill(field);
@@ -214,7 +396,7 @@ function generateDictionary(symbol, symbols, tree) {
     r += `    return r;\n`;
     r += `"\n\n`;
     // as JS
-    r += `pub ext fun ${symbol.name}::as_js(self: ${symbol.name}) -> Any = "\n`;
+    r += `pub ext fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = "\n`;
     r += `    const r = {};\n`;
     for(const field of fields) {
         const n = fieldNameToQuill(field);
@@ -235,7 +417,7 @@ function generateEnum(symbol, symbols) {
         + raw.slice(1);
     for(const v of symbol.values) {
         const qv = variantToQuill(v.value);
-        r += `pub val ${symbol.name}::${qv}: String = "${v.value}";\n`;
+        r += `pub val ${symbol.name}::${qv}: String = "${v.value}"\n`;
     }
     r += "\n";
     return r;
@@ -262,28 +444,34 @@ function generateValue(value, type) {
             case "sequence":
                 return "List::empty()"
             case "dictionary":
-                console.error("default values of type 'dictionary' are not implemented");
+                console.warn("default values of type 'dictionary' are not implemented");
                 return "Option::None";
         }
     };
-    switch(type.idlType) {
-        case "any":
-        case "object":
-            return `Any::from(${gen()})`;
-    }
+    const genCast = () => {
+        switch(type.idlType) {
+            case "any":
+            case "object":
+                return `${gen()} |> as_js()`;
+        }
+        return gen();
+    };
+    if(value.type === "null") { return `Option::None`; }
     if(type.nullable) {
-        if(value.type === "null") { return `Option::None`; }
-        return `Option::Some(${gen()})`;
+        return `Option::Some(${genCast()})`;
     }
-    return gen();
+    return genCast();
 }
 
 function generateTypeRefNamed(type, symbols, mutable = true) {
-    if(type.generic) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Generics are not yet implemented!`);
-        return "Any";
+    switch(type.generic) {
+        case "sequence":
+            return `List[${generateTypeRef(type.idlType[0], symbols, mutable)}]`;
+        default: if(type.generic) {
+            // TODO!
+            console.warn(`Generic '${type.generic}' is not yet implemented!`);
+            return "JsValue";
+        }
     }
     switch(type.idlType) {
         case "boolean":
@@ -301,30 +489,31 @@ function generateTypeRefNamed(type, symbols, mutable = true) {
             return "String";
         case "ArrayBuffer": case "SharedArrayBuffer":
             // TODO!
-            console.error(`Usage of type '${type.idlType}' is not yet implemented`);
-            return "Any";
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "JsValue";
         case "Int8Array": case "Int16Array": case "Int32Array":
         case "Uint8Array": case "Uint16Array": case "Uint32Array":
         case "Uint8ClampedArray":
         case "BigInt64Array": case "BigUint64Array":
         case "Float16Array": case "Float32Array": case "Float64Array":
             // TODO!
-            console.error(`Usage of type '${type.idlType}' is not yet implemented`);
-            return "Any";
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "JsValue";
         case "DataView":
             // TODO!
-            console.error(`Usage of type '${type.idlType}' is not yet implemented`);
-            return "Any";
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "JsValue";
         case "object":
+            return "JsObject";
         case "any":
-            return "Any";
+            return "JsValue";
         case "undefined":
             return "Unit";
     }
     const symbol = symbols[type.idlType];
     if(symbol === undefined) {
-        console.error(`Unable to find type '${type.idlType}'!`);
-        return "Any";
+        console.warn(`Unable to find type '${type.idlType}'!`);
+        return "JsValue";
     }
     if(symbol.type === "enum") {
         return "String";
@@ -358,134 +547,237 @@ function generateTypeRef(type, symbols, mutable = true) {
         return `Option[${generateTypeRefNamed(type, symbols, mutable)}]`;
     }
     if(type.union) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Unions are not yet implemented!`);
-        return "Any";
+        return "JsValue";
     }
     return generateTypeRefNamed(type, symbols, mutable);
 }
 
-function rawToQuillValue(value, type, symbols) {
-    if(type.generic) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Generics are not yet implemented!`);
-        return value;
+function generateOverloadTypeRefNamed(type, symbols, mutable = true) {
+    switch(type.generic) {
+        case "sequence":
+            return `list_${generateOverloadTypeRef(type.idlType[0], symbols, mutable)}`;
+        default: if(type.generic) {
+            // TODO!
+            console.warn(`Generic '${type.generic}' is not yet implemented!`);
+            return "any";
+        }
     }
     switch(type.idlType) {
         case "boolean":
-            return value;
+            return "bool";
         case "byte": case "octet":
         case "short": case "unsigned short":
         case "long": case "unsigned long":
         case "long long": case "unsigned long long":
-            return `BigInt(${value})`;
         case "bigint":
-            return value;
+            return "int";
         case "float": case "unrestricted float":
         case "double": case "unrestricted double":
-            return value;
+            return "flt";
         case "DOMString": case "ByteString": case "USVString":
-            return value;
+            return "str";
         case "ArrayBuffer": case "SharedArrayBuffer":
-            return value;
+            // TODO!
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "any";
         case "Int8Array": case "Int16Array": case "Int32Array":
         case "Uint8Array": case "Uint16Array": case "Uint32Array":
         case "Uint8ClampedArray":
         case "BigInt64Array": case "BigUint64Array":
         case "Float16Array": case "Float32Array": case "Float64Array":
-            return value;
+            // TODO!
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "any";
         case "DataView":
-            return value;
+            // TODO!
+            console.warn(`Usage of type '${type.idlType}' is not yet implemented`);
+            return "any";
         case "object":
+            return "obj";
         case "any":
-            return value;
+            return "any";
         case "undefined":
-            return value;
+            return "unit";
     }
     const symbol = symbols[type.idlType];
     if(symbol === undefined) {
-        console.error(`Unable to find type '${type.idlType}'!`);
-        return value;
+        console.warn(`Unable to find type '${type.idlType}'!`);
+        return "any";
     }
     if(symbol.type === "enum") {
-        return value;
+        return "str";
     }
     if(symbol.type === "typedef") {
-        return valueToQuillValue(value, symbol.idlType, symbols);
+        return generateOverloadTypeRefNamed(symbol.idlType, symbols, mutable);
     }
     if(symbol.type === "callback") {
-        return value;
+        const ret = generateOverloadTypeRefNamed(symbol.idlType, symbols);
+        const args = symbol.arguments
+            .map(arg => `_${generateOverloadTypeRefNamed(arg.idlType, symbols)}`)
+            .join("");
+        return `f${args}_${ret}`;
     }
     if(symbol.type === "callback interface") {
         const method = symbol.members
             .filter(member => member.type === "operation")
             .at(0);
-        return `(...a) => ${value}.${method.name}(...a)`;
+        const ret = generateOverloadTypeRefNamed(method.idlType, symbols);
+        const args = method.arguments
+            .map(arg => `_${generateOverloadTypeRefNamed(arg.idlType, symbols)}`)
+            .join("");
+        return `f${args}_${ret}`;
+    }
+    const t = toSnakeCase(type.idlType);
+    if(mutable) { return `m${t}`; }
+    return t;
+}
+
+function generateOverloadTypeRef(type, symbols, mutable = true) {
+    if(type.nullable) {
+        return `o${generateOverloadTypeRefNamed(type, symbols, mutable)}`;
+    }
+    if(type.union) {
+        return "any";
+    }
+    return generateOverloadTypeRefNamed(type, symbols, mutable);
+}
+
+function rawToQuillValue(value, type, symbols) {
+    switch(type.generic) {
+        case "sequence":
+            return `#fun(List::from_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        default: if(type.generic) {
+            // TODO!
+            console.warn(`Generic '${type.generic}' is not yet implemented!`);
+            return value;
+        }
+    }
+    if(type.generic) {
+        // type.idlType is an array!
+        // TODO!
+        console.warn(`Generics are not yet implemented!`);
+        return value;
+    }
+    switch(type.idlType) {
+        case "boolean":
+            return `#fun(Bool::from_js)(${value})`;
+        case "byte": case "octet":
+        case "short": case "unsigned short":
+        case "long": case "unsigned long":
+        case "long long": case "unsigned long long":
+            return `#fun(Int::from_js)(${value})`;
+        case "bigint":
+            return `#fun(Int::from_js)(${value})`;
+        case "float": case "unrestricted float":
+        case "double": case "unrestricted double":
+            return `#fun(Float::from_js)(${value})`;
+        case "DOMString": case "ByteString": case "USVString":
+            return `#fun(String::from_js)(${value})`;
+        case "ArrayBuffer": case "SharedArrayBuffer":
+            return value; // JsValue
+        case "Int8Array": case "Int16Array": case "Int32Array":
+        case "Uint8Array": case "Uint16Array": case "Uint32Array":
+        case "Uint8ClampedArray":
+        case "BigInt64Array": case "BigUint64Array":
+        case "Float16Array": case "Float32Array": case "Float64Array":
+            return value; // JsValue
+        case "DataView":
+            return value; // JsValue
+        case "object":
+        case "any":
+            return value; // JsValue
+        case "undefined":
+            return `#fun(Unit::from_js)(${value})`;;
+    }
+    const symbol = symbols[type.idlType];
+    if(symbol === undefined) {
+        console.warn(`Unable to find type '${type.idlType}'!`);
+        return value;
+    }
+    if(symbol.type === "enum") {
+        return `#fun(String::from_js)(${value})`; // string
+    }
+    if(symbol.type === "typedef") {
+        return valueToQuillValue(value, symbol.idlType, symbols);
+    }
+    const functionToQuill = (f, v) => {
+        const argNames = f.arguments
+            .map((arg, i) => `p${i}`);
+        const argValues = f.arguments
+            .map((arg, i) => valueToJsValue(`p${i}`, arg.idlType, symbols));
+        return `((${argNames.join(", ")}) => { const r = ${v}(${argValues.join(", ")}); return ${valueToQuillValue("r", f.idlType, symbols)}; })`;
+    };
+    if(symbol.type === "callback") {
+        return functionToQuill(symbol, value);
+    }
+    if(symbol.type === "callback interface") {
+        const method = symbol.members
+            .filter(member => member.type === "operation")
+            .at(0);
+        return `((...a) => ${functionToQuill(method, `${value}.${method.name}`)}(...a))`;
     }
     return `#fun(${symbol.name}::from_js)(${value})`;
 }
 
 function optionalToQuillValue(value, type, symbols) {
     const t = generateTypeRefNamed(type, symbols);
-    return `(${value} === null || ${value} === undefined? #fun(webidl::make_none[${t}])() : #fun(webidl::make_some[${t}])(${rawToQuillValue(value, type, symbols)}))`;
+    return `#fun(Option::from_js[${t}])(${value})`;
 }
 
 function valueToQuillValue(value, type, symbols) {
     if(type.nullable) {
-        optionalToQuillValue(value, type, symbols);
+        return optionalToQuillValue(value, type, symbols);
     }
     if(type.union) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Unions are not yet implemented!`);
         return value;
     }
     return rawToQuillValue(value, type, symbols);
 }
 
 function rawToJsValue(value, type, symbols) {
-    if(type.generic) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Generics are not yet implemented!`);
-        return value;
+    switch(type.generic) {
+        case "sequence":
+            return `#fun(List::as_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        default: if(type.generic) {
+            // TODO!
+            console.warn(`Generic '${type.generic}' is not yet implemented!`);
+            return value;
+        }
     }
     switch(type.idlType) {
         case "boolean":
-            return value;
+            return `#fun(Bool::as_js)(${value})`;
         case "byte": case "octet":
         case "short": case "unsigned short":
         case "long": case "unsigned long":
         case "long long": case "unsigned long long":
-            return `Number(${value})`;
+            return `#fun(Int::as_js)(${value})`;
         case "bigint":
-            return value;
+            return `#fun(Int::as_js_bigint)(${value})`;
         case "float": case "unrestricted float":
         case "double": case "unrestricted double":
-            return value;
+            return `#fun(Float::as_js)(${value})`;
         case "DOMString": case "ByteString": case "USVString":
-            return value;
+            return `#fun(String::as_js)(${value})`;
         case "ArrayBuffer": case "SharedArrayBuffer":
-            return value;
+            return value; // JsValue
         case "Int8Array": case "Int16Array": case "Int32Array":
         case "Uint8Array": case "Uint16Array": case "Uint32Array":
         case "Uint8ClampedArray":
         case "BigInt64Array": case "BigUint64Array":
         case "Float16Array": case "Float32Array": case "Float64Array":
-            return value;
+            return value; // JsValue
         case "DataView":
-            return value;
+            return value; // JsValue
         case "object":
         case "any":
-            return value;
+            return value; // JsValue
         case "undefined":
-            return value;
+            return `#fun(Unit::as_js)(${value})`;
     }
     const symbol = symbols[type.idlType];
     if(symbol === undefined) {
-        console.error(`Unable to find type '${type.idlType}'!`);
+        console.warn(`Unable to find type '${type.idlType}'!`);
         return value;
     }
     if(symbol.type === "enum") {
@@ -494,21 +786,28 @@ function rawToJsValue(value, type, symbols) {
     if(symbol.type === "typedef") {
         return valueToJsValue(value, symbol.idlType, symbols);
     }
+    const functionToJs = f => {
+        const argNames = f.arguments
+            .map((arg, i) => `p${i}`);
+        const argValues = f.arguments
+            .map((arg, i) => valueToQuillValue(`p${i}`, arg.idlType, symbols));
+        return `((${argNames.join(", ")}) => { const r = ${value}(${argValues.join(", ")}); return ${valueToJsValue("r", f.idlType, symbols)}; })`;
+    };
     if(symbol.type === "callback") {
-        return value;
+        return functionToJs(symbol);
     }
     if(symbol.type === "callback interface") {
         const method = symbol.members
             .filter(member => member.type === "operation")
             .at(0);
-        return `{ ${method.name}: ${value} }`;
+        return `{ ${method.name}: ${functionToJs(method)} }`;
     }
     return `#fun(${symbol.name}::as_js)(${value})`;
 }
 
 function optionalToJsValue(value, type, symbols) {
     const t = generateTypeRefNamed(type, symbols);
-    return `(#fun(Option::is_some[${t}])(${value})? ${rawToJsValue(`${value}.value`, type, symbols)} : null)`;
+    return `#fun(Option::as_js[${t}])(${value})`;
 }
 
 function valueToJsValue(value, type, symbols) {
@@ -516,10 +815,7 @@ function valueToJsValue(value, type, symbols) {
         return optionalToJsValue(value, type, symbols);
     }
     if(type.union) {
-        // type.idlType is an array!
-        // TODO!
-        console.error(`Unions are not yet implemented!`);
-        return "Any";
+        return value;
     }
     return rawToJsValue(value, type, symbols);
 }

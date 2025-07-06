@@ -1,0 +1,65 @@
+
+mod js
+
+/// Represents a Javascript object, which may be used to convert custom types
+/// to Javascript values and back.
+struct JsObject()
+
+/// Returns a new Javascript object without any properties.
+pub ext fun JsObject::empty() -> mut JsObject = "return {};"
+
+/// Constructs a new Javascript object with the given key - value pairs.
+/// Of duplicate entries the last one will be added to the resulting object.
+pub fun JsObject::of(...entries: List[Pair[String, JsValue]]) -> mut JsObject
+    = entries |> values() |> JsObject::collect()
+
+/// Completely drains the given sequence and inserts all entries it contains
+/// into a new Javascript object in the order specified by the sequence.
+/// Of duplicate entries the last one will be added to the resulting object.
+pub fun JsObject::collect(entries: mut Sequence[Pair[String, JsValue]]) -> mut JsObject {
+    val r = JsObject::empty()
+    for entry: entries {
+        r |> set(entry.first, entry.second)
+    }
+    return r
+}
+
+/// Sets the entry with the key specified by 'key' to contain the value
+/// specified by 'value'. If no such entry exists, a new one is created.
+pub ext fun JsObject::set(self: mut JsObject, key: String, value: JsValue) 
+    = "#var(self)[#var(key)] = #var(value);"
+
+/// Gets the value associated with the key specified by 'key', given that it
+/// exists.
+pub ext fun JsObject::get(self: JsObject, key: String) -> Option[JsValue] = "
+    if(!Object.hasOwn(#var(self), #var(key))) { return #fun(js::util::make_none[JsValue])(); }
+    return #fun(js::util::make_some[JsValue])(#var(self)[#var(key)]);
+"
+
+/// Checks if the object has any entry associated with the key 
+/// specified by 'key'.
+pub ext fun JsObject::has(self: JsObject, key: String) -> Bool 
+    = "return Object.hasOwn(#var(self), #var(key));"
+
+/// Returns a list of the keys associated with each of the entries in the given
+/// object.
+pub ext fun JsObject::keys(self: JsObject) -> List[String]
+    = "return Object.keys(#var(self));"
+
+/// Removes the entry associated with the key specified by 'key' from the
+/// object, returnign the value of the removed entry (if had any).
+pub ext fun JsObject::remove(self: mut JsObject, key: String) -> Option[JsObject] = "
+    if(!Object.hasOwn(#var(self), #var(key))) { return #fun(js::util::make_none[JsValue])(); }
+    const r = #var(self)[#var(key)];
+    delete #var(self)[#var(key)];
+    return #fun(js::util::make_some[JsValue])(r);
+"
+
+/// Converts a Javascript object to a Javascript value.
+pub ext fun JsObject::as_js(self: JsObject) -> JsValue = "return #var(self);"
+/// Attempts to convert a Javascript value to a Javascript object.
+/// This may fail and cause a panic if the provided value is not an object.
+pub ext fun JsObject::from_js(v: JsValue) -> JsObject = "
+    if(typeof #var(v) === \"object\") { return #var(v); }
+    return #fun(panic[Unit])(\"Failed to convert JsValue to JsObject\");
+"
