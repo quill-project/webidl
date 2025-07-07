@@ -46,7 +46,10 @@ pub ext fun JsValue::as_string(self: JsValue) -> String = "return #var(self).toS
 pub val NULL: JsValue = Option::None[Unit] |> as_js()
 
 /// Contains 'undefined' as a Javascript value.
-pub val UNDEF: JsValue = Unit::as_js(unit)
+pub val UNDEF: JsValue = unit |> as_js()
+
+/// Contains an empty Javascript list, convertible to a Quill 'List' of any type.
+pub val EMPTY_LIST: JsValue = List::empty[Unit]() |> as_js()
 
 
 
@@ -103,7 +106,7 @@ pub ext fun String::from_js(v: JsValue) -> String = "
 "
 
 /// Converts the unit value to a Javascript value.
-pub ext fun Unit::as_js(self: Unit) -> JsValue = "return #var(self);"
+pub ext fun Unit::as_js(self: Unit) -> JsValue = "return undefined;"
 /// Attempts to convert a Javascript value to the unit value.
 /// This may fail and cause a panic if the provided value is not the unit value.
 pub ext fun Unit::from_js(v: JsValue) -> Unit = "

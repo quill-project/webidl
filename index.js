@@ -16,6 +16,8 @@ function collectFiles(dir, exts) {
     return files;
 }
 
+const sanitizeInput = input => input.replaceAll("toString", "");
+
 function main() {
     const files = collectFiles("./sources", [".idl", ".webidl"]);
     const module = process.argv.at(2); // node index.js <MODULE_NAME>
@@ -26,7 +28,7 @@ function main() {
         const content = fs.readFileSync(file, 'utf-8');
         let declarations;
         try {
-            declarations = idl.parse(content, { sourceName: file });
+            declarations = idl.parse(sanitizeInput(content), { sourceName: file });
         } catch(e) {
             errors.push(e.toString());
             continue;
@@ -46,6 +48,30 @@ function main() {
     fs.writeFileSync("output.quill", result);
 }
 
+// See https://github.com/quill-project/compiler/blob/main/src/frontend/lexer.quill#L53
+// for a list of all Quill keywords
+const quillKeywords = new Set([
+    "if", "else", "ext", "fun", "return", "continue", "break",
+    "val", "mut", "mod", "use", "as", "pub", "struct", "enum", "match",
+    "while", "for",
+
+    "true", "false", "unit"
+]);
+
+const mangleQuillName = name => {
+    if(!quillKeywords.has(name)) { return name; }
+    return `${name}_`;
+};
+
+const isValidIdentifier = name => {
+    if(!name) { return true; }
+    const charIsValid = c => c === "_"
+        || ("a" <= c && c <= "z")
+        || ("A" <= c && c <= "Z")
+        || ("0" <= c && c <= "9");
+    return [...name].every(charIsValid);
+};
+
 const toSnakeCase = name => [...name]
     .map((c, i) => {
         const isUpper = t => t === t.toUpperCase();
@@ -58,11 +84,26 @@ const toSnakeCase = name => [...name]
     })
     .join("");
 
+const toPascalCase = name => [...name]
+    .map((c, i) => {
+        const isFirst = i === 0;
+        const isLower = t => "a" <= t && t <= "z";
+        const isUpper = t => "A" <= t && t <= "Z";
+        const isAlpha = t => isLower(t) || isUpper(t);
+        const isNumeric = t => "0" <= t && t <= "9";
+        if(isNumeric(c) && isFirst) { return "_" + c; }
+        if(isNumeric(c)) { return c; }
+        if(!isAlpha(c)) { return ""; }
+        const preIsAlpha = !isFirst && isAlpha(name[i - 1]);
+        return preIsAlpha? c : c.toUpperCase();
+    })
+    .join("");
+
 const wasGenerated = (generated, thing) => {
     if(generated.has(thing)) { return true; }
     generated.add(thing);
     return false;
-}
+};
 
 function generateSymbol(symbol, symbols, tree, gen) {
     switch(symbol.type) {
@@ -103,7 +144,7 @@ function collectSymbolMembers(symbol, symbols, tree) {
         const included = symbols[def.includes];
         collected.push(...included.members);
     }
-    return collected;
+    return collected.filter(member => isValidIdentifier(member.name));
 }
 
 function generateInterface(symbol, symbols, tree, gen) {
@@ -116,6 +157,8 @@ function generateInterface(symbol, symbols, tree, gen) {
     if(symbol.inheritance !== null) {
         let base = symbol.inheritance;
         while(base !== null) {
+            const baseSymbol = symbols[base];
+            if(baseSymbol === undefined) { break; }
             const baseSC = toSnakeCase(base);
             if(!wasGenerated(gen, `${symbol.name}::as_${baseSC}`)) {
                 r += `/// Converts a reference to '${symbol.name}' to a reference to '${base}'.\n`;
@@ -145,19 +188,17 @@ function generateInterface(symbol, symbols, tree, gen) {
                 r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
                 r += `"\n\n`;
             }
-            const baseSymbol = symbols[base];
-            if(baseSymbol === undefined) { break; }
             base = baseSymbol.inheritance;
         }
     }
     const generateArgumentDecl = arg => {
-        const name = toSnakeCase(arg.name);
+        const name = mangleQuillName(toSnakeCase(arg.name));
         const type = generateTypeRef(arg.idlType, symbols, true);
         if(!arg.variadic) { return `${name}: ${type}`; }
         return `...${name}: List[${type}]`;
     };
     const generateArgumentToJs = arg => {
-        const qv = `#var(${toSnakeCase(arg.name)})`;
+        const qv = `#var(${mangleQuillName(toSnakeCase(arg.name))})`;
         if(!arg.variadic) { return valueToJsValue(qv, arg.idlType, symbols); }
         return `(${qv}).map(v => ${valueToJsValue("v", arg.idlType, symbols)})`;
     };
@@ -194,13 +235,15 @@ function generateInterface(symbol, symbols, tree, gen) {
             // TODO!
             console.warn(`Unhandled special attribute type '${attribute.special}'!`);
         }
-        const nameSC = toSnakeCase(attribute.name);
+        if(attribute.name.length === 0) { continue; }
+        const nameSC = mangleQuillName(toSnakeCase(attribute.name));
         const valueT = generateTypeRef(attribute.idlType, symbols, true);
         const value = `${jsAccessed}.${attribute.name}`;
-        if(wasGenerated(gen, `${symbol.name}::${nameSC}`)) { continue; }
-        r += `pub ext fun ${symbol.name}::${nameSC}(${selfArgRead}) -> ${valueT}\n`;
-        r += `    = "return ${valueToQuillValue(value, attribute.idlType, symbols)};"\n\n`;
-        if(!attribute.readonly) {
+        if(!wasGenerated(gen, `${symbol.name}::${nameSC}`)) {
+            r += `pub ext fun ${symbol.name}::${nameSC}(${selfArgRead}) -> ${valueT}\n`;
+            r += `    = "return ${valueToQuillValue(value, attribute.idlType, symbols)};"\n\n`;
+        }
+        if(!attribute.readonly && !wasGenerated(gen, `${symbol.name}::set_${nameSC}`)) {
             r += `pub ext fun ${symbol.name}::set_${nameSC}(${selfArgWrite}value: ${valueT})\n`;
             r += `    = "${value} = ${valueToJsValue(`#var(value)`, attribute.idlType, symbols)};"\n\n`;
         }
@@ -214,13 +257,14 @@ function generateInterface(symbol, symbols, tree, gen) {
                 o => o.name === operation.name 
                     && o.special === operation.special
             );
-            if(overloads.length === 1) { return quillName; }
-            if(operation.arguments.length === 0) { return quillName; }
+            if(overloads.length === 1) { return mangleQuillName(quillName); }
+            if(operation.arguments.length === 0) { return mangleQuillName(quillName); }
             return quillName + "_" + operation.arguments
                 .map(arg => generateOverloadTypeRef(arg.idlType, symbols, true))
                 .join("_");
         };
         const generateAsMethod = (quillName, jsName, retT, retV) => {
+            if(jsName.length === 0) { return; }
             if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
             r += `pub ext fun ${symbol.name}::${quillName}(__self: mut ${symbol.name}`;
             r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
@@ -232,6 +276,7 @@ function generateInterface(symbol, symbols, tree, gen) {
             r += `"\n\n`;
         };
         const generateAsStatic = (quillName, jsName, retT, retV) => {
+            if(jsName.length === 0) { return; }
             if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
             r += `pub ext fun ${symbol.name}::${quillName}(`;
             r += operation.arguments.map(generateArgumentDecl).join(", ");
@@ -354,8 +399,10 @@ function generateInterfaceConstants(symbol, symbols, tree, gen) {
     const members = collectSymbolMembers(symbol, symbols, tree);
     for(const member of members) {
         if(member.type !== "const") { continue; }
-        if(wasGenerated(gen, `${symbol.name}::${member.name}`)) { continue; }
-        r += `pub val ${symbol.name}::${member.name}: ${generateTypeRef(member.idlType, symbols)} = ${generateValue(member.value, member.idlType, symbols)}\n`;
+        if(member.name.length === 0) { continue; }
+        const quillName = mangleQuillName(toSnakeCase(member.name));
+        if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { continue; }
+        r += `pub val ${symbol.name}::${quillName}: ${generateTypeRef(member.idlType, symbols)} = ${generateValue(member.value, member.idlType, symbols)}\n`;
     }
     if(r.length > 0) { r += "\n"; }
     return r;
@@ -370,7 +417,7 @@ function generateDictionary(symbol, symbols, tree, gen) {
         return `Option[${t}]`; 
     };
     const fieldNameToQuill = field => {
-        return toSnakeCase(field.name);
+        return mangleQuillName(toSnakeCase(field.name));
     };
     // declaration
     if(!wasGenerated(gen, symbol.name)) {
@@ -403,13 +450,14 @@ function generateDictionary(symbol, symbols, tree, gen) {
                 const v = generateValue(field.default, field.idlType, symbols);
                 if(field.required) { return v; }
                 if(field.default.type === "null") { return v; }
+                if(field.idlType.nullable) { return v; }
                 return `Option::Some(${v})`;
             })
             .join(", ");
         r += `)\n\n`;
     }
     // inheritance
-    if(symbol.inheritance !== null) {
+    if(symbol.inheritance !== null && symbols[symbol.inheritance] !== undefined) {
         const baseSC = toSnakeCase(symbol.inheritance);
         if(!wasGenerated(gen, `${symbol.name}::as_${baseSC}`)) {
             r += `/// Converts a reference to '${symbol.name}' to a reference to '${symbol.inheritance}'.\n`;
@@ -469,10 +517,9 @@ function generateDictionary(symbol, symbols, tree, gen) {
 
 function generateEnum(symbol, gen) {
     let r = "";
-    const variantToQuill = (raw) => raw.slice(0, 1).toUpperCase()
-        + raw.slice(1);
     for(const v of symbol.values) {
-        const qv = variantToQuill(v.value);
+        if(v.value.length === 0) { continue; }
+        const qv = toPascalCase(v.value);
         if(wasGenerated(gen, `${symbol.name}::${qv}`)) { continue; }
         r += `pub val ${symbol.name}::${qv}: String = "${v.value}"\n`;
     }
@@ -481,15 +528,20 @@ function generateEnum(symbol, gen) {
 }
 
 function generateValue(value, type, symbols) {
+    const tf = generateTypeRef(type, symbols, false);
+    const tn = generateTypeRefNamed(type, symbols, false);
     const gen = () => {
         switch(value.type) {
             case "string":
                 return `"${value.value}"`;
-            case "number":
-                if(value.value.startsWith("0x")) {
-                    return parseInt(value.value.slice(2), 16).toString(10);
-                }
-                return value.value;
+            case "number": {
+                const r = value.value.startsWith("0x")
+                    ? parseInt(value.value.slice(2), 16).toString(10)
+                    : value.value;
+                return tn === "Int"? r
+                    : r.includes(".")? r
+                    : r + ".0";
+            }
             case "boolean":
                 return value.value;
             case "null":
@@ -498,21 +550,19 @@ function generateValue(value, type, symbols) {
                 return value.negative? "Float::NEG_INF" : "Float::INF";
             case "NaN":
                 return "Float::NAN";
-            case "sequence":
+            case "sequence": {
+                if(tn === "JsValue") { return "EMPTY_LIST"; }
                 return "List::empty()"
+            }
             case "dictionary": {
-                if(type.idlType === "object") {
-                    return "JsObject::empty()";    
-                }
-                const t = generateTypeRefNamed(type, symbols, false);
-                return `${t}::from_js(JsObject::empty() |> as_js())`;
+                if(type.idlType === "object") { return "JsObject::empty()"; }
+                return `${tn}::from_js(JsObject::empty() |> as_js())`;
             }
         }
     };
     const genCast = () => {
-        switch(type.idlType) {
-            case "any":
-                return `${gen()} |> as_js()`;
+        if(tn === "JsValue") {
+            return `${gen()} |> as_js()`;
         }
         return gen();
     };
