@@ -87,7 +87,8 @@ pub fun Promise::then[I, O](self: Promise[I], f: Fun(I) -> Promise[O]) -> Promis
                 |> raw_then(res, rej),
             rej
         )
-    })
+    }) 
+    |> JsValue::unsafe_as[Promise[O]]()
 
 /// Returns a new promise that rejects with the reason that is the result of
 /// calling 'f' with the reason that 'self' rejects with (once 'self' rejects).
@@ -100,6 +101,7 @@ pub fun Promise::catch[T](self: Promise[T], f: Fun(JsValue) -> JsValue) -> Promi
             |error| f(error) |> rej()
         )
     })
+    |> JsValue::unsafe_as[Promise[T]]()
 
 /// Calls 'f' once 'self' rejects or resolves.
 /// The returned promise will reject if 'f' panics or throws an exception. 
@@ -117,3 +119,4 @@ pub fun Promise::finally[T](self: Promise[T], f: Fun()) -> Promise[T]
             }
         )
     })
+    |> JsValue::unsafe_as[Promise[T]]()
