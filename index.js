@@ -492,7 +492,7 @@ function generateDictionary(symbol, symbols, tree, gen) {
             const qv = field.required
                 ? valueToQuillValue(v, field.idlType, symbols)
                 : optionalToQuillValue(v, field.idlType, symbols);
-            r += `    r.${n} = ${qv};\n`;
+            r += `    r.m_${n} = ${qv};\n`;
         }
         r += `    return r;\n`;
         r += `"\n\n`;
@@ -503,7 +503,7 @@ function generateDictionary(symbol, symbols, tree, gen) {
         r += `    const r = {};\n`;
         for(const field of fields) {
             const n = fieldNameToQuill(field);
-            const v = `#var(self).${n}`;
+            const v = `#var(self).m_${n}`;
             const jv = field.required
                 ? valueToJsValue(v, field.idlType, symbols)
                 : optionalToJsValue(v, field.idlType, symbols);
