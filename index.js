@@ -506,7 +506,7 @@ function generateDictionary(symbol, symbols, tree, gen) {
             const v = `#var(self).m_${n}`;
             const jv = field.required
                 ? valueToJsValue(v, field.idlType, symbols)
-                : optionalToJsValue(v, field.idlType, symbols);
+                : `#fun(Option::as_js_undef[${generateTypeRefNamed(field.idlType, symbols)}])(${v})`;
             r += `    r.${field.name} = ${jv};\n`;
         }
         r += `    return r;\n`;
