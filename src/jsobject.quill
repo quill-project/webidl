@@ -47,7 +47,7 @@ pub ext fun JsObject::keys(self: JsObject) -> List[String]
     = "return Object.keys(#var(self));"
 
 /// Removes the entry associated with the key specified by 'key' from the
-/// object, returnign the value of the removed entry (if had any).
+/// object, returning the value of the removed entry (if any was present).
 pub ext fun JsObject::remove(self: mut JsObject, key: String) -> Option[JsObject] = "
     if(!Object.hasOwn(#var(self), #var(key))) { return #fun(js::util::make_none[JsValue])(); }
     const r = #var(self)[#var(key)];

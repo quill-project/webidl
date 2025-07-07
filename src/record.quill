@@ -1,0 +1,146 @@
+
+mod js
+
+/// Represents a Javascript object where each key has type T.
+/// Values inside the object are stored in the object's Javascript 
+/// representation.
+struct Record[T]()
+
+/// Converts a reference to a record to a reference to a Javascript object.
+/// The returned reference references the same object
+/// as the reference 'self'.
+pub ext fun Record::as_object[T](self: Record[T]) -> JsObject 
+    = "return #var(self);"
+
+/// Converts a mutable reference to a record to a mutable reference to a
+/// Javascript object. The returned reference references the same object
+/// as the reference 'self'.
+pub ext fun Record::as_mobject[T](self: mut Record[T]) -> mut JsObject
+    = "return #var(self);"
+
+/// Converts a reference to a Javascript object to a reference to
+/// a record of the given type. This conversion will generally be safe, 
+/// except if the 'T::from_js' conversion function produces undefined behavior
+/// on an invalid conversion, in which case accessing through the returned
+/// record reference may also result in undefined behavior.
+pub ext fun Record::from_object[T](self: JsObject) -> Record[T]
+    = "return #var(self);"
+
+/// Converts a mutable reference to a Javascript object to a mutable reference 
+/// to a record of the given type. This conversion will generally be safe, 
+/// except if the 'T::from_js' conversion function produces undefined behavior
+/// on an invalid conversion, in which case accessing through the returned
+/// record reference may also result in undefined behavior.
+pub ext fun Record::from_mobject[T](self: mut JsObject) -> mut Record[T]
+    = "return #var(self);"
+
+/// Converts a reference to a record to a Javascript value.
+/// The returned Javascript value references the same object as 'self'.
+pub fun Record::as_js[T](self: Record[T]) -> JsValue
+    = JsValue::unsafe_from[Record[T]](self)
+
+/// Converts a Javascript value to a reference to a record of the given type.
+/// This conversion will generally be safe, except if the 'T::from_js' 
+/// conversion function produces undefined behavior on an invalid conversion, 
+/// in which case accessing through the returned record reference may also 
+/// result in undefined behavior.
+pub fun Record::from_js[T](v: JsValue) -> Record[T]
+    = JsValue::unsafe_as[Record[T]](v)
+
+/// Returns a new record without any entries.
+pub fun Record::empty[T]() = JsObject::empty() |> Record::from_object[T]()
+
+/// Constructs a new record with the given key - value pairs.
+/// Of duplicate entries the last one will be added to the resulting record.
+pub fun Record::of[T](...entries: List[Pair[String, T]]) -> mut Record[T]
+    = entries |> values() |> Record::collect[T]()
+
+/// Completely drains the given sequence and inserts all entries it contains
+/// into a new record in the order specified by the sequence.
+/// Of duplicate entries the last one will be added to the resulting record.
+pub fun Record::collect[T](entries: mut Sequence[Pair[String, T]]) -> mut Record[T] {
+    val r: mut Record[T] = Record::empty()
+    for entry: entries {
+        r |> set(entry.first, entry.second)
+    }
+    return r
+}
+
+/// Sets the entry associated with the key specified by 'key' to contain
+/// the value specified by 'value'.
+/// If no such entry exists, a new one is created.
+/// The given value is converted into its Javascript representation using
+/// 'T::as_js' before insertion into the record.
+pub fun Record::set[T](self: mut Record[T], key: String, value: T) = self 
+    |> as_mobject() 
+    |> set(key, T::as_js(value))
+
+/// Gets the value from the entry associated with the key specified by 'key',
+/// given that it exists.
+/// The value is converted back into its Quill representation using 'T::from_js'
+/// before it is returned by the function.
+pub fun Record::get[T](self: Record[T], key: String) -> Option[T] = self 
+    |> as_object() 
+    |> get(key) 
+    |> map[JsValue, T](T::from_js)
+
+/// Checks if the record has any entry associated with the 
+/// key specified by 'key'.
+pub fun Record::has[T](self: Record[T], key: String) -> Bool = self 
+    |> as_object() 
+    |> has(key)
+
+/// Returns the number of entries present in the record.
+pub fun Record::size[T](self: Record[T]) -> Int = self
+    |> as_object()
+    |> keys()
+    |> length()
+
+/// Returns a sequence of the keys of all entries present in the record
+/// at the time of calling.
+pub fun Record::keys[T](self: Record[T]) -> mut Sequence[String] = self
+    |> as_object()
+    |> keys()
+    |> values()
+
+/// Returns a sequence of the entries present in the record at the time of
+/// calling, where each value is the value of that entry at the time of
+/// requesting the next entry from the returned sequence.
+/// The value of each entry is converted into its Javascript representation 
+/// using 'T::as_js' before it is returned.
+pub fun Record::entries[T](self: Record[T]) -> mut Sequence[Pair[String, T]] = self
+    |> keys()
+    |> map[String, Pair[String, T]](|key| Pair(
+        key, 
+        self |> get(key) |> expect("Record entry removed during iteration!")
+    ))
+
+/// Returns a sequence of the values of each of the entries in the record.
+/// The specific entries returned are those that are present in the record
+/// at the time of calling this function.
+/// The values of each entry reflect the value contained in the record
+/// at the time of requesting a next element from the returned sequence.
+/// The value of each entry is converted into its Javascript representation 
+/// using 'T::as_js' before it is returned.
+pub fun Record::values[T](self: Record[T]) -> mut Sequence[T] = self
+    |> keys()
+    |> map[String, T](|key| self 
+        |> get(key)
+        |> expect("Record entry removed during iteration!")
+    )
+
+/// Removes the entry associated with the key specified by 'key' from the
+/// record, returning the value of the removed entry (if any was present).
+/// A removed value is converted into its Javascript representation 
+/// using 'T::as_js' before it is returned.
+pub fun Record::remove[T](self: mut Record[T], key: String) -> Option[T] = self
+    |> as_mobject()
+    |> remove(key)
+    |> map[JsObject, T](T::as_js)
+
+/// Removes all entries associated with the record.
+pub fun Record::clear[T](self: mut Record[T]) {
+    for key: self |> keys() {
+        self |> remove(key)
+    }
+}

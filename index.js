@@ -1,25 +1,49 @@
 
 const fs = require("fs");
+const path = require('path');
 const idl = require("webidl2");
 
-function main() {
-    const fileNames = process.argv.slice(2);
-    if(fileNames.length === 0) {
-        console.log("No files specified.");
-        return;
+function collectFiles(dir, exts) {
+    let files = [];
+    for(const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        const fp = path.resolve(dir, f.name);
+        if(f.isDirectory()) {
+            files.push(...collectFiles(fp, exts));
+        } else if(f.isFile() && exts.includes(path.extname(f.name))) {
+            files.push(fp);
+        }
     }
+    return files;
+}
 
-    for(const file of fileNames) {
-        const content = fs.readFileSync(file, 'utf8');
-        const module = file
-            .split("/").at(-1)
-            .split("\\").at(-1)
-            .split(".").at(-2);
-        const tree = idl.parse(content);
-        const output = generateModule(tree, module);
-        const outFile = module + ".quill";
-        fs.writeFileSync(outFile, output);
+function main() {
+    const files = collectFiles("./sources", [".idl", ".webidl"]);
+    const module = process.argv.at(2); // node index.js <MODULE_NAME>
+    const tree = [];
+    const symbols = {};
+    const errors = [];
+    for(const file of files) {
+        const content = fs.readFileSync(file, 'utf-8');
+        let declarations;
+        try {
+            declarations = idl.parse(content, { sourceName: file });
+        } catch(e) {
+            errors.push(e.toString());
+            continue;
+        }
+        for(const def of declarations) {
+            tree.push(def);
+            if(!def.name) { continue; }
+            symbols[def.name] = def;
+        }
     }
+    console.log(errors);
+    let result = `\nmod ${module}\n\nuse js::*\n\n`;
+    const generated = new Set();
+    for(const symbol of tree) {
+        result += generateSymbol(symbol, symbols, tree, generated);
+    }
+    fs.writeFileSync("output.quill", result);
 }
 
 const toSnakeCase = name => [...name]
@@ -34,42 +58,32 @@ const toSnakeCase = name => [...name]
     })
     .join("");
 
-function generateModule(tree, module) {
-    const symbols = {};
-    for(const symbol of tree) {
-        if(!symbol.name) { continue; }
-        symbols[symbol.name] = symbol;
-    }
-    let result = `\nmod ${module}\n\nuse js::*\n\n`;
-    for(const symbol of tree) {
-        result += generateSymbol(symbol, symbols, tree);
-    }
-    return result;
+const wasGenerated = (generated, thing) => {
+    if(generated.has(thing)) { return true; }
+    generated.add(thing);
+    return false;
 }
 
-function generateSymbol(symbol, symbols, tree) {
+function generateSymbol(symbol, symbols, tree, gen) {
     switch(symbol.type) {
-        case "dictionary": return generateDictionary(symbol, symbols, tree);
-        case "interface": return generateInterface(symbol, symbols, tree)
-            + generateInterfaceConstants(symbol, symbols, tree);
+        case "dictionary": return generateDictionary(symbol, symbols, tree, gen);
+        case "interface": return generateInterface(symbol, symbols, tree, gen)
+            + generateInterfaceConstants(symbol, symbols, tree, gen);
         case "interface mixin": return ""; // Nothing to do, magic happens in 'interface'
         case "includes": // Nothing to do, magic happens in 'interface'
         case "callback": return ""; // nothing to do, magic happens in type ref generator function
-        case "callback interface": return generateInterfaceConstants(symbol, symbols, tree);
+        case "callback interface": return generateInterfaceConstants(symbol, symbols, tree, gen);
         case "typedef": return ""; // nothing to do, magic happens in type ref generator function
-        case "enum": return generateEnum(symbol, symbols);
+        case "enum": return generateEnum(symbol, gen);
     }
     console.warn(`Definitions of type '${symbol.type}' are not implemented`);
     return `// TODO: Definitions of type '${symbol.type}'\n\n`;
 }
 
 function collectSymbolMembers(symbol, symbols, tree) {
-    const seen = new Set();
     const collected = [];
     let searched = symbol;
     for(;;) {
-        if(seen.has(searched.name)) { break; }
-        seen.add(searched.name);
         for(const member of searched.members) {
             if(member.type === "constructor" && searched !== symbol) {
                 continue;
@@ -77,52 +91,63 @@ function collectSymbolMembers(symbol, symbols, tree) {
             collected.push(member);
         }
         if(!searched.inheritance) { break; }
-        searched = symbols[searched.inheritance];
-        if(searched === undefined) {
-            console.warn(`Could not find dictionary '${searched.inheritance}'!`);
+        const base = symbols[searched.inheritance];
+        if(base === undefined) {
+            console.warn(`Could not find symbol '${searched.inheritance}'!`);
             break;
         }
+        searched = base;
     }
     for(const def of tree) {
         if(def.type !== "includes" || def.target !== symbol.name) { continue; }
         const included = symbols[def.includes];
-        if(seen.has(included.name)) { continue; }
-        seen.add(included.name);
         collected.push(...included.members);
     }
     return collected;
 }
 
-function generateInterface(symbol, symbols, tree) {
+function generateInterface(symbol, symbols, tree, gen) {
     let r = "";
     const members = collectSymbolMembers(symbol, symbols, tree);
-    r += `struct ${symbol.name}()\n\n`;
+    if(!wasGenerated(gen, symbol.name)) {
+        r += `struct ${symbol.name}()\n\n`;
+    }
     // generation of inheritance casts
     if(symbol.inheritance !== null) {
         let base = symbol.inheritance;
         while(base !== null) {
             const baseSC = toSnakeCase(base);
-            r += `/// Converts a reference to '${symbol.name}' to a reference to '${base}'.\n`;
-            r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${base} = "return #var(self);"\n\n`;
-            r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${base}'.\n`;
-            r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${base} = "return #var(self);"\n\n`;
-            r += `/// Attempts to convert a reference to '${base}' to a reference to '${symbol.name}'.\n`;
-            r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
-            r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::from_${baseSC}(base: ${base}) -> ${symbol.name} = "\n`;
-            r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
-            r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
-            r += `"\n\n`
-            r += `/// Attempts to convert a mutable reference to '${base}' to a mutable reference to '${symbol.name}'.\n`;
-            r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
-            r += `/// This does not involve manipulating the object or reference.\n`;
-            r += `pub ext fun ${symbol.name}::from_m${baseSC}(base: mut ${base}) -> mut ${symbol.name} = "\n`;
-            r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
-            r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
-            r += `"\n\n`;
-            base = symbols[base].inheritance;
+            if(!wasGenerated(gen, `${symbol.name}::as_${baseSC}`)) {
+                r += `/// Converts a reference to '${symbol.name}' to a reference to '${base}'.\n`;
+                r += `/// This does not involve manipulating the object or reference.\n`;
+                r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${base} = "return #var(self);"\n\n`;
+            }
+            if(!wasGenerated(gen, `${symbol.name}::as_m${baseSC}`)) {
+                r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${base}'.\n`;
+                r += `/// This does not involve manipulating the object or reference.\n`;
+                r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${base} = "return #var(self);"\n\n`;
+            }
+            if(!wasGenerated(gen, `${symbol.name}::from_${baseSC}`)) {
+                r += `/// Attempts to convert a reference to '${base}' to a reference to '${symbol.name}'.\n`;
+                r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
+                r += `/// This does not involve manipulating the object or reference.\n`;
+                r += `pub ext fun ${symbol.name}::from_${baseSC}(base: ${base}) -> ${symbol.name} = "\n`;
+                r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
+                r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
+                r += `"\n\n`
+            }
+            if(!wasGenerated(gen, `${symbol.name}::from_m${baseSC}`)) {
+                r += `/// Attempts to convert a mutable reference to '${base}' to a mutable reference to '${symbol.name}'.\n`;
+                r += `/// The conversion may fail and panic if 'base' is not a reference to '${symbol.name}' or if the given instance is user-implemented.\n`;
+                r += `/// This does not involve manipulating the object or reference.\n`;
+                r += `pub ext fun ${symbol.name}::from_m${baseSC}(base: mut ${base}) -> mut ${symbol.name} = "\n`;
+                r += `    if(#var(base) instanceof ${symbol.name}) { return #var(base); }\n`
+                r += `    #fun(panic[Unit])(\\"Failed to downcast '${base}' to '${symbol.name}'!\\");\n`
+                r += `"\n\n`;
+            }
+            const baseSymbol = symbols[base];
+            if(baseSymbol === undefined) { break; }
+            base = baseSymbol.inheritance;
         }
     }
     const generateArgumentDecl = arg => {
@@ -145,6 +170,7 @@ function generateInterface(symbol, symbols, tree) {
             : `from_` + constructor.arguments
                 .map(arg => generateOverloadTypeRef(arg.idlType, symbols, true))
                 .join("_");
+        if(wasGenerated(gen, `${symbol.name}::${name}`)) { continue; }
         r += `pub ext fun ${symbol.name}::${name}(`;
         r += constructor.arguments.map(generateArgumentDecl).join(", ");
         r += `) -> mut ${symbol.name}\n`;
@@ -171,6 +197,7 @@ function generateInterface(symbol, symbols, tree) {
         const nameSC = toSnakeCase(attribute.name);
         const valueT = generateTypeRef(attribute.idlType, symbols, true);
         const value = `${jsAccessed}.${attribute.name}`;
+        if(wasGenerated(gen, `${symbol.name}::${nameSC}`)) { continue; }
         r += `pub ext fun ${symbol.name}::${nameSC}(${selfArgRead}) -> ${valueT}\n`;
         r += `    = "return ${valueToQuillValue(value, attribute.idlType, symbols)};"\n\n`;
         if(!attribute.readonly) {
@@ -194,6 +221,7 @@ function generateInterface(symbol, symbols, tree) {
                 .join("_");
         };
         const generateAsMethod = (quillName, jsName, retT, retV) => {
+            if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
             r += `pub ext fun ${symbol.name}::${quillName}(__self: mut ${symbol.name}`;
             r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
             r += `) -> ${retT} = "\n`;
@@ -204,6 +232,7 @@ function generateInterface(symbol, symbols, tree) {
             r += `"\n\n`;
         };
         const generateAsStatic = (quillName, jsName, retT, retV) => {
+            if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
             r += `pub ext fun ${symbol.name}::${quillName}(`;
             r += operation.arguments.map(generateArgumentDecl).join(", ");
             r += `) -> ${retT} = "\n`;
@@ -214,7 +243,9 @@ function generateInterface(symbol, symbols, tree) {
             r += `"\n\n`;
         };
         const generateAsGetter = (retT, retV) => {
-            r += `pub ext fun ${symbol.name}::${getMangledName("get")}(__self: ${symbol.name}`;
+            const quillName = getMangledName("get");
+            if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
+            r += `pub ext fun ${symbol.name}::${quillName}(__self: ${symbol.name}`;
             r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
             r += `) -> ${retT} = "\n`;
             r += `    const r = ${symbol.name}[${generateArgumentToJs(operation.arguments[0])}];\n`;
@@ -224,14 +255,18 @@ function generateInterface(symbol, symbols, tree) {
         const generateAsSetter = () => {
             const key = generateArgumentToJs(operation.arguments[0]);
             const value = generateArgumentToJs(operation.arguments[1]);
-            r += `pub ext fun ${symbol.name}::${getMangledName("set")}(__self: mut ${symbol.name}`;
+            const quillName = getMangledName("set");
+            if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
+            r += `pub ext fun ${symbol.name}::${quillName}(__self: mut ${symbol.name}`;
             r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
             r += `) = "\n`;
             r += `    ${symbol.name}[${key}] = ${value};\n`;
             r += `"\n\n`;
         };
         const generateAsDeleter = () => {
-            r += `pub ext fun ${symbol.name}::${getMangledName("remove")}(__self: mut ${symbol.name}`;
+            const quillName = getMangledName("remove");
+            if(wasGenerated(gen, `${symbol.name}::${quillName}`)) { return; }
+            r += `pub ext fun ${symbol.name}::${quillName}(__self: mut ${symbol.name}`;
             r += operation.arguments.map(a => `, ${generateArgumentDecl(a)}`).join("");
             r += `) = "\n`;
             r += `    delete ${symbol.name}[${generateArgumentToJs(operation.arguments[0])}];\n`;
@@ -305,23 +340,28 @@ function generateInterface(symbol, symbols, tree) {
         }       
     }
     // generation of JS conversions
-    r += `pub fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = JsValue::unsafe_from[${symbol.name}](self)\n\n`
-    r += `pub fun ${symbol.name}::from_js(v: JsValue) -> mut ${symbol.name} = JsValue::unsafe_as[mut ${symbol.name}](v)\n\n`
+    if(!wasGenerated(gen, `${symbol.name}::as_js`)) {
+        r += `pub fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = JsValue::unsafe_from[${symbol.name}](self)\n\n`
+    }
+    if(!wasGenerated(gen, `${symbol.name}::from_js`)) {
+        r += `pub fun ${symbol.name}::from_js(v: JsValue) -> mut ${symbol.name} = JsValue::unsafe_as[mut ${symbol.name}](v)\n\n`
+    }
     return r;
 }
 
-function generateInterfaceConstants(symbol, symbols, tree) {
+function generateInterfaceConstants(symbol, symbols, tree, gen) {
     let r = "";
     const members = collectSymbolMembers(symbol, symbols, tree);
     for(const member of members) {
         if(member.type !== "const") { continue; }
-        r += `pub val ${symbol.name}::${member.name}: ${generateTypeRef(member.idlType)} = ${generateValue(member.value, member.idlType)}\n`;
+        if(wasGenerated(gen, `${symbol.name}::${member.name}`)) { continue; }
+        r += `pub val ${symbol.name}::${member.name}: ${generateTypeRef(member.idlType, symbols)} = ${generateValue(member.value, member.idlType, symbols)}\n`;
     }
     if(r.length > 0) { r += "\n"; }
     return r;
 }
 
-function generateDictionary(symbol, symbols, tree) {
+function generateDictionary(symbol, symbols, tree, gen) {
     let r = "";
     const fields = collectSymbolMembers(symbol, symbols, tree);
     const fieldTypeToQuill = field => {
@@ -333,97 +373,114 @@ function generateDictionary(symbol, symbols, tree) {
         return toSnakeCase(field.name);
     };
     // declaration
-    r += `pub struct ${symbol.name}(`;
-    let hadField = false;
-    for(const field of fields) {
-        if(hadField) { r += `,`; }
-        hadField = true;
-        r += `\n    ${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`;
+    if(!wasGenerated(gen, symbol.name)) {
+        r += `pub struct ${symbol.name}(`;
+        let hadField = false;
+        for(const field of fields) {
+            if(hadField) { r += `,`; }
+            hadField = true;
+            r += `\n    ${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`;
+        }
+        r += `\n)\n\n`;
     }
-    r += `\n)\n\n`;
     // default values
-    r += `pub fun ${symbol.name}::default(`;
-    r += fields
-        .filter(field => field.default === null && field.required && !field.idlType.nullable)
-        .map(field => `${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`)
-        .join(", ");
-    r += `) -> mut ${symbol.name}\n`;
-    r += `    = ${symbol.name}(`;
-    r += fields
-        .map(field => {
-            if(field.default === null) {
-                if(field.required && !field.idlType.nullable) {
-                    return fieldNameToQuill(field);
+    if(!wasGenerated(gen, `${symbol.name}::default`)) {
+        r += `pub fun ${symbol.name}::default(`;
+        r += fields
+            .filter(field => field.default === null && field.required && !field.idlType.nullable)
+            .map(field => `${fieldNameToQuill(field)}: ${fieldTypeToQuill(field)}`)
+            .join(", ");
+        r += `) -> mut ${symbol.name}\n`;
+        r += `    = ${symbol.name}(`;
+        r += fields
+            .map(field => {
+                if(field.default === null) {
+                    if(field.required && !field.idlType.nullable) {
+                        return fieldNameToQuill(field);
+                    }
+                    return "Option::None";
                 }
-                return "Option::None";
-            }
-            const v = generateValue(field.default, field.idlType);
-            if(field.required) { return v; }
-            if(field.default.type === "null") { return v; }
-            return `Option::Some(${v})`;
-        })
-        .join(", ");
-    r += `)\n\n`;
+                const v = generateValue(field.default, field.idlType, symbols);
+                if(field.required) { return v; }
+                if(field.default.type === "null") { return v; }
+                return `Option::Some(${v})`;
+            })
+            .join(", ");
+        r += `)\n\n`;
+    }
     // inheritance
     if(symbol.inheritance !== null) {
         const baseSC = toSnakeCase(symbol.inheritance);
-        r += `/// Converts a reference to '${symbol.name}' to a reference to '${symbol.inheritance}'.\n`;
-        r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
-        r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${symbol.inheritance}'.\n`;
-        r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
-        r += `/// Attempts to convert a reference to '${symbol.inheritance}' to a reference to '${symbol.name}'.\n`;
-        r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
-        r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::from_${baseSC}_unchecked(base: ${symbol.inheritance}) -> ${symbol.name} = "return #var(base);"\n\n`;
-        r += `/// Attempts to convert a mutable reference to '${symbol.inheritance}' to a mutable reference to '${symbol.name}'.\n`;
-        r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
-        r += `/// This does not involve manipulating the object or reference.\n`;
-        r += `pub ext fun ${symbol.name}::from_m${baseSC}_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(base);"\n\n`;
+        if(!wasGenerated(gen, `${symbol.name}::as_${baseSC}`)) {
+            r += `/// Converts a reference to '${symbol.name}' to a reference to '${symbol.inheritance}'.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::as_${baseSC}(self: ${symbol.name}) -> ${symbol.inheritance} = "return #var(self);"\n\n`;
+        }
+        if(!wasGenerated(gen, `${symbol.name}::as_m${baseSC}`)) {
+            r += `/// Converts a mutable reference to '${symbol.name}' to a mutable reference to '${symbol.inheritance}'.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::as_m${baseSC}(self: mut ${symbol.name}) -> mut ${symbol.inheritance} = "return #var(self);"\n\n`;
+        }
+        if(!wasGenerated(gen, `${symbol.name}::from_${baseSC}_unchecked`)) {
+            r += `/// Attempts to convert a reference to '${symbol.inheritance}' to a reference to '${symbol.name}'.\n`;
+            r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::from_${baseSC}_unchecked(base: ${symbol.inheritance}) -> ${symbol.name} = "return #var(base);"\n\n`;
+        }
+        if(!wasGenerated(gen, `${symbol.name}::from_m${baseSC}_unchecked`)) {
+            r += `/// Attempts to convert a mutable reference to '${symbol.inheritance}' to a mutable reference to '${symbol.name}'.\n`;
+            r += `/// A 'base' that is not a reference to '${symbol.name}' RESULTS IN UNDEFINED BEHAVIOR.\n`;
+            r += `/// This does not involve manipulating the object or reference.\n`;
+            r += `pub ext fun ${symbol.name}::from_m${baseSC}_unchecked(base: mut ${symbol.inheritance}) -> mut ${symbol.name} = "return #var(base);"\n\n`;
+        }
     }
     // from JS
-    r += `pub ext fun ${symbol.name}::from_js(value: JsValue) -> mut ${symbol.name} = "\n`;
-    r += `    const r = {};\n`;
-    for(const field of fields) {
-        const n = fieldNameToQuill(field);
-        const v = `#var(value).${field.name}`;
-        const qv = field.required
-            ? valueToQuillValue(v, field.idlType, symbols)
-            : optionalToQuillValue(v, field.idlType, symbols);
-        r += `    r.${n} = ${qv};\n`;
+    if(!wasGenerated(gen, `${symbol.name}::from_js`)) {
+        r += `pub ext fun ${symbol.name}::from_js(value: JsValue) -> mut ${symbol.name} = "\n`;
+        r += `    const r = {};\n`;
+        for(const field of fields) {
+            const n = fieldNameToQuill(field);
+            const v = `#var(value).${field.name}`;
+            const qv = field.required
+                ? valueToQuillValue(v, field.idlType, symbols)
+                : optionalToQuillValue(v, field.idlType, symbols);
+            r += `    r.${n} = ${qv};\n`;
+        }
+        r += `    return r;\n`;
+        r += `"\n\n`;
     }
-    r += `    return r;\n`;
-    r += `"\n\n`;
     // as JS
-    r += `pub ext fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = "\n`;
-    r += `    const r = {};\n`;
-    for(const field of fields) {
-        const n = fieldNameToQuill(field);
-        const v = `#var(self).${n}`;
-        const jv = field.required
-            ? valueToJsValue(v, field.idlType, symbols)
-            : optionalToJsValue(v, field.idlType, symbols);
-        r += `    r.${field.name} = ${jv};\n`;
+    if(!wasGenerated(gen, `${symbol.name}::as_js`)) {
+        r += `pub ext fun ${symbol.name}::as_js(self: ${symbol.name}) -> JsValue = "\n`;
+        r += `    const r = {};\n`;
+        for(const field of fields) {
+            const n = fieldNameToQuill(field);
+            const v = `#var(self).${n}`;
+            const jv = field.required
+                ? valueToJsValue(v, field.idlType, symbols)
+                : optionalToJsValue(v, field.idlType, symbols);
+            r += `    r.${field.name} = ${jv};\n`;
+        }
+        r += `    return r;\n`;
+        r += `"\n\n`;
     }
-    r += `    return r;\n`;
-    r += `"\n\n`;
     return r;
 }
 
-function generateEnum(symbol, symbols) {
+function generateEnum(symbol, gen) {
     let r = "";
     const variantToQuill = (raw) => raw.slice(0, 1).toUpperCase()
         + raw.slice(1);
     for(const v of symbol.values) {
         const qv = variantToQuill(v.value);
+        if(wasGenerated(gen, `${symbol.name}::${qv}`)) { continue; }
         r += `pub val ${symbol.name}::${qv}: String = "${v.value}"\n`;
     }
     r += "\n";
     return r;
 }
 
-function generateValue(value, type) {
+function generateValue(value, type, symbols) {
     const gen = () => {
         switch(value.type) {
             case "string":
@@ -443,15 +500,18 @@ function generateValue(value, type) {
                 return "Float::NAN";
             case "sequence":
                 return "List::empty()"
-            case "dictionary":
-                console.warn("default values of type 'dictionary' are not implemented");
-                return "Option::None";
+            case "dictionary": {
+                if(type.idlType === "object") {
+                    return "JsObject::empty()";    
+                }
+                const t = generateTypeRefNamed(type, symbols, false);
+                return `${t}::from_js(JsObject::empty() |> as_js())`;
+            }
         }
     };
     const genCast = () => {
         switch(type.idlType) {
             case "any":
-            case "object":
                 return `${gen()} |> as_js()`;
         }
         return gen();
@@ -464,9 +524,16 @@ function generateValue(value, type) {
 }
 
 function generateTypeRefNamed(type, symbols, mutable = true) {
+    if(type.union) {
+        return "JsValue";
+    }
     switch(type.generic) {
         case "sequence":
             return `List[${generateTypeRef(type.idlType[0], symbols, mutable)}]`;
+        case "Promise":
+            return `Promise[${generateTypeRef(type.idlType[0], symbols, mutable)}]`;
+        case "record":
+            return `Record[${generateTypeRef(type.idlType[1], symbols, mutable)}]`;
         default: if(type.generic) {
             // TODO!
             console.warn(`Generic '${type.generic}' is not yet implemented!`);
@@ -508,6 +575,7 @@ function generateTypeRefNamed(type, symbols, mutable = true) {
         case "any":
             return "JsValue";
         case "undefined":
+        case "void":
             return "Unit";
     }
     const symbol = symbols[type.idlType];
@@ -546,16 +614,20 @@ function generateTypeRef(type, symbols, mutable = true) {
     if(type.nullable) {
         return `Option[${generateTypeRefNamed(type, symbols, mutable)}]`;
     }
-    if(type.union) {
-        return "JsValue";
-    }
     return generateTypeRefNamed(type, symbols, mutable);
 }
 
 function generateOverloadTypeRefNamed(type, symbols, mutable = true) {
+    if(type.union) {
+        return "any";
+    }
     switch(type.generic) {
         case "sequence":
             return `list_${generateOverloadTypeRef(type.idlType[0], symbols, mutable)}`;
+        case "Promise":
+            return `prom_${generateOverloadTypeRef(type.idlType[0], symbols, mutable)}`;
+        case "record":
+            return `rec_${generateOverloadTypeRef(type.idlType[1], symbols, mutable)}`;
         default: if(type.generic) {
             // TODO!
             console.warn(`Generic '${type.generic}' is not yet implemented!`);
@@ -597,6 +669,7 @@ function generateOverloadTypeRefNamed(type, symbols, mutable = true) {
         case "any":
             return "any";
         case "undefined":
+        case "void":
             return "unit";
     }
     const symbol = symbols[type.idlType];
@@ -636,16 +709,20 @@ function generateOverloadTypeRef(type, symbols, mutable = true) {
     if(type.nullable) {
         return `o${generateOverloadTypeRefNamed(type, symbols, mutable)}`;
     }
-    if(type.union) {
-        return "any";
-    }
     return generateOverloadTypeRefNamed(type, symbols, mutable);
 }
 
 function rawToQuillValue(value, type, symbols) {
+    if(type.union) {
+        return value;
+    }
     switch(type.generic) {
         case "sequence":
             return `#fun(List::from_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        case "Promise":
+            return `#fun(Promise::from_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        case "record":
+            return `#fun(Record::from_js[${generateTypeRef(type.idlType[1], symbols)}])(${value})`;
         default: if(type.generic) {
             // TODO!
             console.warn(`Generic '${type.generic}' is not yet implemented!`);
@@ -687,6 +764,7 @@ function rawToQuillValue(value, type, symbols) {
         case "any":
             return value; // JsValue
         case "undefined":
+        case "void":
             return `#fun(Unit::from_js)(${value})`;;
     }
     const symbol = symbols[type.idlType];
@@ -728,16 +806,20 @@ function valueToQuillValue(value, type, symbols) {
     if(type.nullable) {
         return optionalToQuillValue(value, type, symbols);
     }
-    if(type.union) {
-        return value;
-    }
     return rawToQuillValue(value, type, symbols);
 }
 
 function rawToJsValue(value, type, symbols) {
+    if(type.union) {
+        return value;
+    }
     switch(type.generic) {
         case "sequence":
             return `#fun(List::as_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        case "Promise":
+            return `#fun(Promise::as_js[${generateTypeRef(type.idlType[0], symbols)}])(${value})`;
+        case "record":
+            return `#fun(Record::as_js[${generateTypeRef(type.idlType[1], symbols)}])(${value})`;
         default: if(type.generic) {
             // TODO!
             console.warn(`Generic '${type.generic}' is not yet implemented!`);
@@ -773,6 +855,7 @@ function rawToJsValue(value, type, symbols) {
         case "any":
             return value; // JsValue
         case "undefined":
+        case "void":
             return `#fun(Unit::as_js)(${value})`;
     }
     const symbol = symbols[type.idlType];
@@ -813,9 +896,6 @@ function optionalToJsValue(value, type, symbols) {
 function valueToJsValue(value, type, symbols) {
     if(type.nullable) {
         return optionalToJsValue(value, type, symbols);
-    }
-    if(type.union) {
-        return value;
     }
     return rawToJsValue(value, type, symbols);
 }

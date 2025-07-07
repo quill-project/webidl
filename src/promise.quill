@@ -1,0 +1,119 @@
+
+mod js
+
+struct Promise[T]()
+
+ext fun Promise::new_raw(executor: Fun(Fun(JsValue), Fun(JsValue))) -> JsValue = "
+    return new Promise(#var(executor));
+"
+
+/// Constructs a new promise from the given executor function.
+/// The given executor function receives two functions:
+/// 1. 'Fun(T)' - Makes the promise resolve to the given result value.
+/// 2. 'Fun(JsValue)' - Makes the promise reject with the given error value.
+/// A panic or exception inside the executor body will lead to the promise
+/// rejecting with that same value.
+pub fun Promise::new[T](executor: Fun(Fun(T), Fun(JsValue))) -> Promise[T]
+    = Promise::new_raw(|res, rej| {
+        executor(|value| res(T::as_js(value)), rej)
+    })
+    |> JsValue::unsafe_as[Promise[T]]()
+
+/// Converts the given promise to a Javascript value.
+pub fun Promise::as_js[T](self: Promise[T]) -> JsValue 
+    = JsValue::unsafe_from[Promise[T]](self)
+
+/// Attempts to convert a Javascript value to a promise.
+/// This may fail and cause a panic if the provided value is not a promise.
+pub ext fun Promise::from_js[T](v: JsValue) -> Promise[T] = "
+    if(#var(v) instanceof Promise) { return #var(v); }
+    #fun(panic[Unit])(\"Failed to convert JsValue to Promise\");
+"
+
+/// Takes a list of promises and returns a single promise that resolves
+/// when all of the provided promises resolve. The returned promise resolves
+/// to a list of the values from each of the given promises.
+/// The returned promise is...
+/// - ...already fulfilled if the given list of promises is empty
+/// - ...asynchronously resolved once all of the given promises resolve
+/// - ...asynchronously rejected once any of the given promises reject
+pub ext fun Promise::all(promises: List[Promise[JsValue]]) -> Promise[List[JsValue]]
+    = "return Promise.all(#var(promises));"
+
+/// Takes a list of promises and returns a single promise that resolves
+/// when any of the provided promises resolve. The returned promise resolves
+/// to value that the first resolved promise resolves to. The returned promise
+/// rejects to a list of errors if all of the provided promises reject
+/// (where the list contains the errors of each of the promises) or if the
+/// given list of promises is empty.
+pub ext fun Promise::any(promises: List[Promise[JsValue]]) -> Promise[JsValue]
+    = "return Promise.any(#var(promises));"
+
+/// Returns a new promise that rejected with the given reason.
+pub fun Promise::reject[T](reason: JsValue) -> Promise[T]
+    = Promise::new(|_, rej| rej(reason))
+
+/// Returns a new promise that resolves with the given value.
+pub fun Promise::resolve[T](value: T) -> Promise[T]
+    = Promise::new(|res, _| res(value))
+
+ext fun Promise::raw_then[T](self: Promise[T], on_res: Fun(JsValue), on_rej: Fun(JsValue))
+    = "#var(self).then(#var(on_res), #var(on_rej));"
+
+/// Returns a new promise that resolves to the value that is the result of
+/// calling 'f' with the value that 'self' resolves to (once 'self' resolves).
+/// The returned promise rejects with the same reason as 'self', should 'self'
+/// reject.
+pub fun Promise::map[I, O](self: Promise[I], f: Fun(I) -> O) -> Promise[O]
+    = Promise::new(|res, rej| {
+        self |> raw_then(
+            |value| I::from_js(value) 
+                |> f() 
+                |> res(), 
+            rej
+        )
+    })
+
+/// 'f' shall be called with the value that 'self' resolves to.
+/// The returned promise will resolve to whatever value the promise returned
+/// by 'f' resolves to.
+/// The returned promise will reject if either 'self' or the promise returned 
+/// by 'f' rejects.
+pub fun Promise::then[I, O](self: Promise[I], f: Fun(I) -> Promise[O]) -> Promise[O]
+    = Promise::new_raw(|res, rej| {
+        self |> raw_then(
+            |self_val| I::from_js(self_val) 
+                |> f() 
+                |> raw_then(res, rej),
+            rej
+        )
+    })
+
+/// Returns a new promise that rejects with the reason that is the result of
+/// calling 'f' with the reason that 'self' rejects with (once 'self' rejects).
+/// The returned promise resolves to the same value as 'self', should 'self'
+/// resolve.
+pub fun Promise::catch[T](self: Promise[T], f: Fun(JsValue) -> JsValue) -> Promise[T]
+    = Promise::new_raw(|res, rej| {
+        self |> raw_then(
+            res,
+            |error| f(error) |> rej()
+        )
+    })
+
+/// Calls 'f' once 'self' rejects or resolves.
+/// The returned promise will reject if 'f' panics or throws an exception. 
+/// It will otherwise resolve or reject with the same value as 'self'.
+pub fun Promise::finally[T](self: Promise[T], f: Fun()) -> Promise[T]
+    = Promise::new_raw(|res, rej| {
+        self |> raw_then(
+            |value| {
+                f()
+                res(value)
+            },
+            |error| {
+                f()
+                rej(error)
+            }
+        )
+    })

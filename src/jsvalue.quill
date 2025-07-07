@@ -5,13 +5,48 @@ mod js
 /// The value is any value in a format that Javascript expects.
 struct JsValue()
 
+/// Converts the Javascript value to a Javascript value.
+/// This function does not do anything and only exists for the sake of 
+/// completeness.
 pub fun JsValue::as_js(self: JsValue) -> JsValue = self
 
+/// Converts the Javascript value to a Javascript value.
+/// This function does not do anything and only exists for the sake of 
+/// completeness.
 pub fun JsValue::from_js(v: JsValue) -> JsValue = v
 
+/// Converts the given value of any type to a Javascript value.
+/// DO NOT USE THIS FUNCTION UNLESS YOU KNOW WHAT YOU ARE DOING.
+/// Conversion functions between Quill types and Javascript are defined
+/// on a per-type basis, so this function SHOULD NOT BE USED.
+/// This function assumes that the Javascript and Quill representations
+/// of the given type match, and that they can therefore be used 
+/// interchangeably. Using this function with a type T which has a Javascript
+/// representation which differs from the Quill representation results in
+/// UNDEFINED BEHAVIOR.
 pub ext fun JsValue::unsafe_from[T](value: T) -> JsValue = "return #var(value);"
 
+/// Converts the given Javascript value to a Quill value of the given type.
+/// DO NOT USE THIS FUNCTION UNLESS YOU KNOW WHAT YOU ARE DOING.
+/// Conversion functions between Quill types and Javascript are defined
+/// on a per-type basis, so this function SHOULD NOT BE USED.
+/// This function assumes that the Javascript and Quill representations
+/// of the given type match, and that they can therefore be used 
+/// interchangeably. Using this function with a type T which has a Javascript
+/// representation which differs from the Quill representation results in
+/// UNDEFINED BEHAVIOR.
 pub ext fun JsValue::unsafe_as[T](value: JsValue) -> T = "return #var(value);"
+
+/// Converts the given Javascript value to a string based on the value's
+/// Javascript representation and the Javascript method for string conversion.
+/// This will work for most Javascript values.
+pub ext fun JsValue::as_string(self: JsValue) -> String = "return #var(self).toString();"
+
+/// Contains 'null' as a Javascript value.
+pub val NULL: JsValue = Option::None[Unit] |> as_js()
+
+/// Contains 'undefined' as a Javascript value.
+pub val UNDEF: JsValue = Unit::as_js(unit)
 
 
 
