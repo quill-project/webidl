@@ -59,7 +59,7 @@ pub ext fun JsObject::remove(self: mut JsObject, key: String) -> Option[JsObject
 pub ext fun JsObject::as_js(self: JsObject) -> JsValue = "return #var(self);"
 /// Attempts to convert a Javascript value to a Javascript object.
 /// This may fail and cause a panic if the provided value is not an object.
-pub ext fun JsObject::from_js(v: JsValue) -> JsObject = "
+pub ext fun JsObject::from_js(v: JsValue) -> mut JsObject = "
     if(typeof #var(v) === \"object\") { return #var(v); }
     return #fun(panic[Unit])(\"Failed to convert JsValue to JsObject\");
 "
