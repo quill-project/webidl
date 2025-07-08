@@ -215,7 +215,7 @@ function generateInterface(symbol, symbols, tree, gen) {
         r += `pub ext fun ${symbol.name}::${name}(`;
         r += constructor.arguments.map(generateArgumentDecl).join(", ");
         r += `) -> mut ${symbol.name}\n`;
-        r += `    = "new ${symbol.name}(`;
+        r += `    = "return new ${symbol.name}(`;
         r += constructor.arguments.map(generateArgumentToJs).join(", ");
         r += `);"\n\n`;
     }
