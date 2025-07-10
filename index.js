@@ -200,7 +200,7 @@ function generateInterface(symbol, symbols, tree, gen) {
     const generateArgumentToJs = arg => {
         const qv = `#var(${mangleQuillName(toSnakeCase(arg.name))})`;
         if(!arg.variadic) { return valueToJsValue(qv, arg.idlType, symbols); }
-        return `(${qv}).map(v => ${valueToJsValue("v", arg.idlType, symbols)})`;
+        return `...((${qv}).map(v => ${valueToJsValue("v", arg.idlType, symbols)}))`;
     };
     // TODO! method for implementing, returns mut ref (duck typing :/)
     // generation of constructors
